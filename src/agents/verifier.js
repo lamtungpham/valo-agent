@@ -59,8 +59,9 @@ export function verify(d, factMap, { question, factIds = [] } = {}) {
     checks.push({ ok: true, msg: 'Bổ sung câu hỏi GROW còn thiếu' });
   }
   const segments = toSegments(text);
-  const used = [...new Set([...segments.filter((s) => s.t === 'fact').map((s) => s.id), ...factIds])].filter((id) => factMap[id]);
-  checks.push({ ok: true, msg: `${used.length} con số kèm nguồn, ngày dữ liệu, công thức` });
+  // chỉ đếm và trưng những fact thật sự xuất hiện trong tin nhắn
+  const used = [...new Set(segments.filter((s) => s.t === 'fact').map((s) => s.id))].filter((id) => factMap[id]);
+  checks.push({ ok: true, msg: `${used.length} con số trong tin đều kèm nguồn, ngày dữ liệu, công thức` });
   return {
     segments,
     facts: used.map((id) => factMap[id]),
