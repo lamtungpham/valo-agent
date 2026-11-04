@@ -41,8 +41,10 @@ function describeEmpty(json) {
  * Gọi chat completions. Trả về chuỗi nội dung, hoặc null nếu chưa cấu hình key / lỗi mạng
  * (khi đó Agent Coach dùng lời dẫn mẫu và giao diện ghi rõ "chưa có AI").
  */
-export async function museChat(messages, { temperature = 0.4, maxTokens = Number(process.env.META_MAX_TOKENS) || 8000, timeoutMs = 60000, retried = false } = {}) {
+export async function museChat(messages, { temperature = 0.4, maxTokens = Number(process.env.META_MAX_TOKENS) || 8000, timeoutMs = 60000, retried = false, noEffort = false } = {}) {
   if (!museEnabled()) return { text: null, error: 'META_API_KEY chưa được đặt' };
+  // Tuỳ chọn: giảm suy luận ngầm để trả lời nhanh hơn (nếu API không nhận tham số này thì tự bỏ đi)
+  const effort = noEffort ? null : process.env.META_REASONING_EFFORT || null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -52,11 +54,12 @@ export async function museChat(messages, { temperature = 0.4, maxTokens = Number
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.META_API_KEY}`,
       },
-      body: JSON.stringify({ model: MUSE_MODEL, messages, temperature, max_tokens: maxTokens }),
+      body: JSON.stringify({ model: MUSE_MODEL, messages, temperature, max_tokens: maxTokens, ...(effort ? { reasoning_effort: effort } : {}) }),
       signal: ctrl.signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
+      if (effort && res.status === 400) { clearTimeout(t); return museChat(messages, { temperature, maxTokens, timeoutMs, retried, noEffort: true }); }
       return { text: null, error: `HTTP ${res.status} ${body.slice(0, 200)}` };
     }
     const json = await res.json();
@@ -65,7 +68,7 @@ export async function museChat(messages, { temperature = 0.4, maxTokens = Number
     // Muse Spark suy luận ngầm trước khi viết: nếu hết token khi chưa kịp viết thì gọi lại một lần với ngân sách gấp đôi
     if (!retried && json?.choices?.[0]?.finish_reason === 'length') {
       clearTimeout(t);
-      return museChat(messages, { temperature, maxTokens: maxTokens * 2, timeoutMs, retried: true });
+      return museChat(messages, { temperature, maxTokens: maxTokens * 2, timeoutMs, retried: true, noEffort });
     }
     return { text: null, error: describeEmpty(json) };
   } catch (e) {
