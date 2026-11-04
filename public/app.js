@@ -17,12 +17,98 @@ async function api(path, body) {
   return j;
 }
 
+// Gọi API ở chế độ luồng: máy chủ báo agent nào đang chạy theo thời gian thực, dòng cuối là kết quả.
+async function apiLive(path, body) {
+  const r = await fetch(`/api${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' }, body: JSON.stringify(body ?? {}) });
+  if (!r.body || !String(r.headers.get('content-type')).includes('ndjson')) { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let done = null;
+  for (;;) {
+    const { value, done: end } = await reader.read();
+    if (value) buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!line) continue;
+      const ev = JSON.parse(line);
+      if (ev.type === 'stage') setLive(ev.agent, ev.detail);
+      else if (ev.type === 'done') done = ev;
+    }
+    if (end) break;
+  }
+  if (!done) throw new Error('Mất kết nối giữa chừng');
+  if (done.code >= 400) throw new Error(done.body?.error || `HTTP ${done.code}`);
+  return done.body;
+}
+
+// Trạng thái sống của sơ đồ: agent nào đang chạy, agent nào đã chạy trong lượt này
+const LIVE = { active: null, detail: '', ran: new Set(), running: false, queue: [], shownAt: 0, timer: null };
+const LIVE_MIN_MS = 300; // bước chạy quá nhanh vẫn sáng đủ lâu để mắt kịp thấy
+const liveMin = () => (LIVE.queue.length > 3 ? 120 : LIVE_MIN_MS); // hàng đợi dài thì tua nhanh để không bắt người dùng chờ
+function setLive(agent, detail) {
+  LIVE.queue.push({ agent, detail });
+  pumpLive();
+}
+function pumpLive() {
+  if (LIVE.timer || !LIVE.queue.length) return;
+  const wait = Math.max(0, LIVE.shownAt + liveMin() - Date.now());
+  LIVE.timer = setTimeout(() => {
+    LIVE.timer = null;
+    const { agent, detail } = LIVE.queue.shift();
+    if (LIVE.active && LIVE.active !== agent) LIVE.ran.add(LIVE.active);
+    LIVE.active = agent;
+    LIVE.detail = detail;
+    LIVE.running = true;
+    LIVE.shownAt = Date.now();
+    const t = $('#typing');
+    if (t) t.textContent = `${agent}: ${detail}…`;
+    paintLive();
+    pumpLive();
+  }, wait);
+}
+/** Chờ sơ đồ diễn xong các bước đã nhận rồi mới hiện kết quả. */
+function drainLive() {
+  return new Promise((res) => {
+    const check = () => (!LIVE.queue.length && !LIVE.timer && Date.now() - LIVE.shownAt >= 200 ? res() : setTimeout(check, 50));
+    check();
+  });
+}
+function endLive() {
+  LIVE.queue = [];
+  if (LIVE.timer) { clearTimeout(LIVE.timer); LIVE.timer = null; }
+  LIVE.active = null;
+  LIVE.running = false;
+  LIVE.ran.clear();
+  const t = $('#typing');
+  if (t) t.textContent = 'Các agent đang làm việc…';
+  paintLive();
+}
+function paintLive() {
+  const svg = document.querySelector('.ag-svg');
+  if (!svg) return;
+  svg.classList.toggle('running', LIVE.running);
+  const idx = AGENTS.findIndex((n) => n.key === LIVE.active);
+  svg.querySelectorAll('.ag-node').forEach((g) => {
+    const k = g.dataset.agent;
+    g.classList.toggle('active', k === LIVE.active);
+    g.classList.toggle('ran', LIVE.ran.has(k) && k !== LIVE.active);
+    if (k === LIVE.active) g.querySelector('.dt').textContent = LIVE.detail;
+  });
+  svg.querySelectorAll('.ag-link, .ag-pulse').forEach((el) => el.classList.toggle('flow', Number(el.dataset.i) === idx - 1));
+  const st = $('#agLiveText');
+  if (st) st.textContent = LIVE.running ? `Đang chạy: ${LIVE.active} (${LIVE.detail})` : 'Đang chờ. Nhắn tin, bấm Bắt đầu hoặc cập nhật dữ liệu để xem các agent làm việc.';
+}
+
 async function act(path, body) {
   if (busy) return;
   busy = true;
   setBusy(true);
   try {
-    const j = await api(path, body);
+    const j = await apiLive(path, body);
+    await drainLive();
     if (j.state) { toolResult = j.result; S = j.state; } else S = j;
     render();
   } catch (e) {
@@ -30,6 +116,7 @@ async function act(path, body) {
   } finally {
     busy = false;
     setBusy(false);
+    endLive();
   }
 }
 
@@ -271,13 +358,11 @@ function renderData() {
     <div class="card"><div><b>${esc(d.meta.label)}</b></div>
       <div class="note">Adapter: ${esc(d.meta.source === 'valo-import' ? 'Dữ liệu dán từ app Valo' : d.meta.source === 'mock' ? 'Mock (dữ liệu hư cấu)' : S.adapter.label)} · dữ liệu ngày ${esc(d.asOf)}${d.meta.fallbackReason ? ` · <b style="color:var(--warn)">Đang dùng mock vì: ${esc(d.meta.fallbackReason)}</b>` : ''}</div>
       ${d.edited ? '<div class="note">Có chỉnh sửa tay chồng lên dữ liệu gốc.</div>' : ''}</div>
-    <div class="card form"><b>Bộ dữ liệu test</b>
-      <select id="ds"><option value="mr-sample" ${S.user.dataset === 'mr-sample' ? 'selected' : ''}>Bộ 1: đóng BHXH liên tục 01/2018-10/2026</option><option value="mr-sample-gap" ${S.user.dataset === 'mr-sample-gap' ? 'selected' : ''}>Bộ 2: thiếu 03, 04, 05/2022</option><option value="valo-import" ${S.user.dataset === 'valo-import' ? 'selected' : ''}>Dữ liệu dán từ Valo</option><option value="valo" ${S.user.dataset === 'valo' ? 'selected' : ''}>Valo API thật ${S.adapter.configured ? '' : '(chưa cấu hình, sẽ dùng mock)'}</option></select>
-      <div class="note">Bộ 1 và 2 là dữ liệu hư cấu có nhãn. "Valo API thật" đọc qua adapter HTTP; lỗi thì tự rơi về mock và ghi rõ lý do.</div></div>
-    <div class="card form" id="valoImportCard"><b>Nối dữ liệu từ Valo</b>
-      <div class="note">Trong app Valo: mở Cố vấn AI → bấm "Chỉ sao chép dữ liệu" (JSON valo-financial-context). Dán vào đây hoặc chọn file JSON. Dữ liệu chỉ lưu trên máy đang chạy Valo Agent.</div>
+    <div class="card form"><b>Bộ dữ liệu tài chính</b>
+      <select id="ds"><option value="valo-import" ${S.user.dataset === 'valo-import' ? 'selected' : ''}>Dán dữ liệu từ Valo (mặc định)</option><option value="mr-sample" ${S.user.dataset === 'mr-sample' ? 'selected' : ''}>Bộ test 1: đóng BHXH liên tục 01/2018-10/2026</option><option value="mr-sample-gap" ${S.user.dataset === 'mr-sample-gap' ? 'selected' : ''}>Bộ test 2: thiếu BHXH 03, 04, 05/2022</option><option value="valo" ${S.user.dataset === 'valo' ? 'selected' : ''}>Valo API ${S.adapter.configured ? '' : '(chưa cấu hình, sẽ dùng dữ liệu mẫu)'}</option></select>
+      ${S.user.dataset === 'valo-import' ? `<div class="note" style="margin-top:8px">Trong app Valo: mở Cố vấn AI → bấm "Chỉ sao chép dữ liệu" (JSON valo-financial-context), rồi dán vào ô dưới hoặc chọn file JSON. Dữ liệu chỉ lưu trên máy đang chạy Valo Agent.${S.user.hasValoImport ? '' : ' <b style="color:var(--warn)">Chưa có dữ liệu dán, đang tạm hiển thị dữ liệu mẫu Mr. Sample.</b>'}</div>
       <textarea id="valoPaste" rows="4" placeholder='{"schema":"valo-financial-context", ...}' style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font:12px ui-monospace,monospace"></textarea>
-      <div class="inline"><input type="file" id="valoFile" accept="application/json,.json"><button class="btn primary" id="btnImport">Nhập dữ liệu Valo</button></div></div>
+      <div class="inline"><input type="file" id="valoFile" accept="application/json,.json"><button class="btn primary" id="btnImport">Nhập dữ liệu Valo</button></div>` : '<div class="note">Bộ test 1 và 2 là dữ liệu hư cấu có nhãn (Mr. Sample). "Valo API" đọc qua adapter HTTP; lỗi thì tự rơi về dữ liệu mẫu và ghi rõ lý do.</div>'}</div>
     <div class="card form"><b>Dữ liệu đổi → agent đánh giá lại theo sự kiện</b>
       <div class="inline"><label>Số dư quỹ dự phòng (đ)<input id="inEf" type="number" value="${d.accounts.find((a) => a.isEmergencyFund)?.balance ?? 0}" step="1000000"></label>
       <label>Chi tiêu tháng gần nhất (đ)<input id="inSp" type="number" value="" placeholder="giữ nguyên"></label></div>
@@ -290,8 +375,8 @@ function renderData() {
     <h4>Tài khoản (đọc qua adapter)</h4>
     <div class="card"><ul class="clean">${d.accounts.map((a) => `<li class="row"><span>${esc(a.name)} <span class="note">${esc(a.assetClass)}</span></span><span>${vnd(a.balance)}</span></li>`).join('')}</ul><div class="note">Số dư hiển thị nguyên trạng từ nguồn dữ liệu.</div></div>`;
   $('#ds').addEventListener('change', (e) => act('/dataset', { dataset: e.target.value }));
-  $('#valoFile').addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) $('#valoPaste').value = await f.text(); });
-  $('#btnImport').addEventListener('click', () => { const t = $('#valoPaste').value.trim(); if (t) act('/valo/import', { data: t }); });
+  $('#valoFile')?.addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) $('#valoPaste').value = await f.text(); });
+  $('#btnImport')?.addEventListener('click', () => { const t = $('#valoPaste').value.trim(); if (t) act('/valo/import', { data: t }); });
   $('#btnUpd').addEventListener('click', () => act('/data/update', { emergencyFund: $('#inEf').value, lastMonthSpending: $('#inSp').value }));
   document.querySelectorAll('[data-days]').forEach((b) => b.addEventListener('click', () => act('/time/advance', { days: Number(b.dataset.days) })));
   $('#btnReset').addEventListener('click', () => { if (confirm('Xoá toàn bộ hồ sơ coaching demo?')) act('/reset', {}); });
@@ -326,8 +411,8 @@ function renderAgents() {
   const Y = (i) => 56 + i * 104;
   const nodes = AGENTS.map((n, i) => {
     const t = last(n.key);
-    const cls = `ag-node${t ? ' on' : ''}${n.key === 'Kiểm chứng' && blocked ? ' warn' : ''}`;
-    return `<g class="${cls}" style="--d:${i * 0.45}s" transform="translate(110,${Y(i)})">
+    const cls = `ag-node${n.key === 'Kiểm chứng' && blocked ? ' warn' : ''}`;
+    return `<g class="${cls}" data-agent="${esc(n.key)}" transform="translate(110,${Y(i)})">
       <circle class="halo" r="40"></circle><circle class="core" r="32"></circle>
       <text class="ic" y="9" text-anchor="middle">${n.icon}</text>
       <text class="nm" x="54" y="-8">${esc(n.key)}</text>
@@ -336,8 +421,8 @@ function renderAgents() {
   }).join('');
   const links = AGENTS.slice(0, -1).map((n, i) => {
     const d = `M110,${Y(i) + 40} L110,${Y(i + 1) - 40}`;
-    return `<path class="ag-link" d="${d}"></path>
-      <circle class="ag-pulse" r="5"><animateMotion dur="1.4s" begin="${i * 0.45}s" repeatCount="indefinite" path="${d}"/></circle>`;
+    return `<path class="ag-link" data-i="${i}" d="${d}"></path>
+      <circle class="ag-pulse" data-i="${i}" r="5"><animateMotion dur="0.9s" repeatCount="indefinite" path="${d}"/></circle>`;
   }).join('');
   const back = `<path class="ag-back" d="M70,${Y(4)} C20,${Y(4)} 20,${Y(0)} 70,${Y(0)}"></path>
     <text class="rl" transform="translate(14,${(Y(0) + Y(4)) / 2}) rotate(-90)" text-anchor="middle">vòng lặp chủ động: sự kiện vượt ngưỡng → nhắc bạn</text>
@@ -345,12 +430,14 @@ function renderAgents() {
     <text class="rl warnx" x="200" y="${(Y(2) + Y(3)) / 2 + 4}">số lạ → chặn, dùng bản mẫu</text>`;
   $('#tab-agents').innerHTML = `
     <h3>Multi-agent chia vai</h3>
-    <p class="note">Mỗi lần bạn nhắn hoặc dữ liệu đổi, một lượt chạy đi qua 5 agent theo thứ tự. Nút sáng là agent đã chạy ở lượt gần nhất, dòng chữ dưới nút là việc nó vừa làm.</p>
+    <p class="note">Sơ đồ chạy theo thời gian thực: agent nào đang làm việc thì sáng lên, agent vừa xong trong lượt này có viền cam nhạt. Khi đứng yên, dòng chữ dưới mỗi agent là việc nó làm ở lượt gần nhất.</p>
+    <div class="ag-status" id="agLiveText"></div>
     <div class="card ag-wrap"><svg class="ag-svg" viewBox="0 0 520 520" role="img" aria-label="Sơ đồ luồng 5 agent">${back}${links}${nodes}</svg></div>
     <div class="card note">AI: Muse Spark <b>${esc(S.muse.model)}</b> qua ${esc(S.muse.baseUrl)} · ${S.muse.enabled ? 'đã cấu hình khoá' : 'chưa có META_API_KEY, Coach dùng lời dẫn mẫu'}. LLM không bao giờ nhận quyền tính số: nó chỉ chèn mã {{fact}} và Agent Kiểm chứng chặn mọi chữ số lạ.</div>
     <h4>Nhật ký gần nhất</h4>
     <ul class="clean trace">${S.trace.map(item).join('')}</ul>`;
   agentAnimKey = stamp;
+  paintLive();
 }
 
 function render() {
@@ -471,7 +558,7 @@ window.Onboard = (() => {
     const f = box.querySelector('#obForm');
     if (f) f.onsubmit = (e) => { e.preventDefault(); const t = box.querySelector('#obIn').value.trim(); if (t) call('/onboarding/answer', { text: t }); };
     const cn = box.querySelector('#obConnect');
-    if (cn) cn.onclick = () => { document.querySelector('[data-tab=data]').click(); setTimeout(() => document.querySelector('#valoPaste')?.focus(), 50); };
+    if (cn) cn.onclick = async () => { if (S.user.dataset !== 'valo-import') await act('/dataset', { dataset: 'valo-import' }); document.querySelector('[data-tab=data]').click(); setTimeout(() => document.querySelector('#valoPaste')?.focus(), 50); };
     const rs = box.querySelector('#obRestart');
     if (rs) rs.onclick = () => call('/onboarding/start', {});
   }

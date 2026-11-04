@@ -11,7 +11,7 @@ export const START_DATE = '2026-11-04';
 function freshUser(id) {
   return {
     id,
-    dataset: 'mr-sample',
+    dataset: 'valo-import', // mặc định: dữ liệu dán từ Valo (chưa dán thì tạm dùng Mr. Sample, có ghi rõ)
     simDate: START_DATE, // đồng hồ mô phỏng để demo vòng lặp theo thời gian
     overrides: {}, // dữ liệu người dùng chỉnh tay (mô phỏng "dữ liệu đổi")
     plannedRetirementAge: null,

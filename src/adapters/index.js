@@ -48,7 +48,7 @@ class ImportedValoAdapter {
   constructor(imported) { this.imported = imported; }
   describe() { return 'Valo (dữ liệu dán từ app Valo)'; }
   async getSnapshot() {
-    if (!this.imported?.ctx) return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: 'Chưa dán dữ liệu Valo' }).getSnapshot();
+    if (!this.imported?.ctx) return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: 'Chưa dán dữ liệu Valo, tạm hiển thị dữ liệu mẫu Mr. Sample' }).getSnapshot();
     try {
       const s = mapValoContext(this.imported.ctx, { label: `Dữ liệu Valo (dán lúc ${this.imported.at})` });
       s.meta.source = 'valo-import';
