@@ -2,6 +2,8 @@
 // lỗi hoặc chưa cấu hình → rơi về mock có ghi nhãn lý do. Hai bộ "mr-sample*" luôn là mock hư cấu.
 import { MockValoAdapter } from './mockAdapter.js';
 import { HttpValoAdapter } from './httpAdapter.js';
+import { mapValoContext } from './valoContextMapper.js';
+import { validateSnapshot } from './valoAdapter.js';
 
 let lastError = null;
 
@@ -41,7 +43,24 @@ class FallbackAdapter {
   }
 }
 
-export function getAdapter({ dataset } = {}) {
+/** Dữ liệu người dùng tự dán/tải từ Valo (nút "Sao chép dữ liệu" trong Cố vấn AI của Valo). */
+class ImportedValoAdapter {
+  constructor(imported) { this.imported = imported; }
+  describe() { return 'Valo (dữ liệu dán từ app Valo)'; }
+  async getSnapshot() {
+    if (!this.imported?.ctx) return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: 'Chưa dán dữ liệu Valo' }).getSnapshot();
+    try {
+      const s = mapValoContext(this.imported.ctx, { label: `Dữ liệu Valo (dán lúc ${this.imported.at})` });
+      s.meta.source = 'valo-import';
+      return validateSnapshot(s);
+    } catch (e) {
+      return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: `Dữ liệu dán không hợp lệ: ${e.message}` }).getSnapshot();
+    }
+  }
+}
+
+export function getAdapter({ dataset, imported } = {}) {
+  if (dataset === 'valo-import') return new ImportedValoAdapter(imported);
   if (dataset === 'valo') {
     if (!realConfigured()) return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: 'Chưa cấu hình VALO_API_BASE_URL hoặc VALO_CONTEXT_FILE' });
     return new FallbackAdapter(realAdapter());

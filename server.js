@@ -10,6 +10,7 @@ import { museStatus } from './src/llm/muse.js';
 import { adapterStatus } from './src/adapters/index.js';
 import { runTool } from './src/agents/tools.js';
 import * as onboarding from './src/agents/onboarding.js';
+import { mapValoContext } from './src/adapters/valoContextMapper.js';
 
 // Nạp .env nếu có (không bắt buộc), không ghi đè biến đã đặt sẵn
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -68,8 +69,25 @@ async function api(req, res, path) {
     return state();
   }
   if (path === '/api/dataset') {
-    user.dataset = ['mr-sample', 'mr-sample-gap', 'valo'].includes(body.dataset) ? body.dataset : 'mr-sample';
+    user.dataset = ['mr-sample', 'mr-sample-gap', 'valo', 'valo-import'].includes(body.dataset) ? body.dataset : 'mr-sample';
     await onDataChange(user, 'dataset-change');
+    return state();
+  }
+  if (path === '/api/valo/import') {
+    let ctx = body.data;
+    if (typeof ctx === 'string') {
+      const t = ctx.trim();
+      const start = t.indexOf('{');
+      const end = t.lastIndexOf('}');
+      try { ctx = JSON.parse(t.slice(start, end + 1)); } catch { return json(res, 400, { error: 'Không đọc được JSON. Hãy dán đúng phần dữ liệu Valo đã sao chép.' }); }
+    }
+    try { mapValoContext(ctx); } catch (e) { return json(res, 400, { error: e.message }); }
+    const now = new Date();
+    user.valoImport = { ctx, at: now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) };
+    user.dataset = 'valo-import';
+    user.overrides = {};
+    user.alertKeys = {};
+    await onDataChange(user, 'valo-import');
     return state();
   }
   if (path === '/api/time/advance') {

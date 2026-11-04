@@ -57,7 +57,7 @@ Muốn bật AI, sao chép `.env.example` thành `.env` và điền `META_API_KE
 | `src/agents/onboarding.js` | Nhánh chưa dùng Valo: 13 câu khai vấn, bản đồ tài chính, hồ sơ tạm |
 | `src/adapters/` | `valoAdapter.js` (interface), `mockAdapter.js` (dữ liệu hư cấu), `httpAdapter.js` + `valoContextMapper.js` (Valo thật), `index.js` (chọn adapter, fallback mock có nhãn) |
 | `src/llm/muse.js` | Client Muse Spark (OpenAI-compatible `/chat/completions`), key từ biến môi trường |
-| `src/store.js` | Hồ sơ coaching bền vững trong `data/store.json` (đã gitignore) |
+| `src/store.js` | Hồ sơ coaching bền vững trong `data/store.json` (đã gitignore): mục tiêu, cam kết, lịch sử vi phạm, phiên GROW đang dở, dữ liệu Valo đã dán. Một người dùng; bản nhiều người dùng sẽ dùng chung đăng nhập Supabase của Valo với bảng hồ sơ coaching có RLS |
 | `fixtures/` | Dữ liệu hư cấu Mr. Sample: bộ 1 liên tục, bộ 2 thiếu 03-05/2022, bản định dạng Valo để test adapter |
 | `public/` | Giao diện web thuần HTML/CSS/JS |
 
@@ -96,9 +96,16 @@ Căn cứ đơn giản hoá: Bộ luật Lao động 2019 Điều 169 và Nghị
 
 ## Adapter Valo (P1)
 
-`ValoDataAdapter.getSnapshot()` trả một snapshot chuẩn hoá (mô tả trong `src/adapters/valoAdapter.js`). Hai bản cài đặt:
+Dữ liệu trong Valo được mã hoá đầu-cuối (chỉ trình duyệt có passphrase mới giải mã), nên Valo Agent không kéo thẳng từ server Valo. Có ba đường vào, đều đi qua cùng một mapper `valo-financial-context` v4.0:
+
+- **Dán dữ liệu (khuyên dùng):** trong Valo mở Cố vấn AI → "Chỉ sao chép dữ liệu", rồi dán (hoặc chọn file JSON) ở tab Dữ liệu → "Nối dữ liệu từ Valo". Dữ liệu chỉ lưu trong `data/store.json` trên máy chạy Valo Agent.
+- **API:** `VALO_API_BASE_URL` cho một endpoint trả cùng định dạng (khi Valo có nơi phát dữ liệu đã giải mã có sự đồng ý của người dùng).
+- **File:** `VALO_CONTEXT_FILE`.
+
+`ValoDataAdapter.getSnapshot()` trả một snapshot chuẩn hoá (mô tả trong `src/adapters/valoAdapter.js`). Các bản cài đặt:
 
 - `MockValoAdapter`: đọc `fixtures/mr-sample*.json`, luôn gắn nhãn "DỮ LIỆU HƯ CẤU".
+- `ImportedValoAdapter` (trong `index.js`): đọc dữ liệu người dùng đã dán.
 - `HttpValoAdapter`: `GET {VALO_API_BASE_URL}/financial-context` (Bearer `VALO_API_TOKEN` nếu có) hoặc đọc `VALO_CONTEXT_FILE`, nhận định dạng `valo-financial-context` v4.0 mà app Valo đang xuất, rồi ánh xạ sang snapshot.
 
 Chọn "Valo API thật" ở tab Dữ liệu. Nếu chưa cấu hình hoặc API lỗi, app tự dùng mock và hiện rõ lý do trên giao diện.
@@ -109,7 +116,7 @@ Tab "Chưa dùng Valo": 13 câu khai vấn, mỗi tin một câu, bắt đầu t
 
 ## Test
 
-`npm test` chạy 15 test: lịch sử BHXH hai bộ dữ liệu, tuổi luật, tỷ lệ hưởng, dự phóng lương hưu, thanh trượt, quỹ dự phòng và mô phỏng, Agent Kiểm chứng chặn số bịa, adapter Valo qua HTTP và fallback.
+`npm test` chạy 16 test: lịch sử BHXH hai bộ dữ liệu, tuổi luật, tỷ lệ hưởng, dự phóng lương hưu, thanh trượt, quỹ dự phòng và mô phỏng, Agent Kiểm chứng chặn số bịa, adapter Valo qua HTTP, dữ liệu dán và fallback.
 
 ## Lưu ý
 

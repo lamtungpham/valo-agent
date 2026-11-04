@@ -42,3 +42,12 @@ test('Valo API lỗi → fallback mock có nhãn lý do', async () => {
   assert.equal(adapterStatus().mode, 'fallback');
   delete process.env.VALO_API_BASE_URL;
 });
+
+test('Dữ liệu dán từ Valo được đọc qua adapter import', async () => {
+  const { getAdapter } = await import('../src/adapters/index.js');
+  const s = await getAdapter({ dataset: 'valo-import', imported: { ctx, at: 'test' } }).getSnapshot();
+  assert.equal(s.meta.source, 'valo-import');
+  assert.equal(s.meta.fictional, false);
+  const bad = await getAdapter({ dataset: 'valo-import', imported: { ctx: { schema: 'x' }, at: 'test' } }).getSnapshot();
+  assert.ok(bad.meta.fallbackReason.includes('không hợp lệ'));
+});

@@ -257,11 +257,15 @@ function renderData() {
   $('#tab-data').innerHTML = `
     <h3>Nguồn dữ liệu</h3>
     <div class="card"><div><b>${esc(d.meta.label)}</b></div>
-      <div class="note">Adapter: ${esc(S.adapter.label)} · dữ liệu ngày ${esc(d.asOf)}${d.meta.fallbackReason ? ` · <b style="color:var(--warn)">Đang dùng mock vì: ${esc(d.meta.fallbackReason)}</b>` : ''}</div>
+      <div class="note">Adapter: ${esc(d.meta.source === 'valo-import' ? 'Dữ liệu dán từ app Valo' : d.meta.source === 'mock' ? 'Mock (dữ liệu hư cấu)' : S.adapter.label)} · dữ liệu ngày ${esc(d.asOf)}${d.meta.fallbackReason ? ` · <b style="color:var(--warn)">Đang dùng mock vì: ${esc(d.meta.fallbackReason)}</b>` : ''}</div>
       ${d.edited ? '<div class="note">Có chỉnh sửa tay chồng lên dữ liệu gốc.</div>' : ''}</div>
     <div class="card form"><b>Bộ dữ liệu test</b>
-      <select id="ds"><option value="mr-sample" ${S.user.dataset === 'mr-sample' ? 'selected' : ''}>Bộ 1: đóng BHXH liên tục 01/2018-10/2026</option><option value="mr-sample-gap" ${S.user.dataset === 'mr-sample-gap' ? 'selected' : ''}>Bộ 2: thiếu 03, 04, 05/2022</option><option value="valo" ${S.user.dataset === 'valo' ? 'selected' : ''}>Valo API thật ${S.adapter.configured ? '' : '(chưa cấu hình, sẽ dùng mock)'}</option></select>
+      <select id="ds"><option value="mr-sample" ${S.user.dataset === 'mr-sample' ? 'selected' : ''}>Bộ 1: đóng BHXH liên tục 01/2018-10/2026</option><option value="mr-sample-gap" ${S.user.dataset === 'mr-sample-gap' ? 'selected' : ''}>Bộ 2: thiếu 03, 04, 05/2022</option><option value="valo-import" ${S.user.dataset === 'valo-import' ? 'selected' : ''}>Dữ liệu dán từ Valo</option><option value="valo" ${S.user.dataset === 'valo' ? 'selected' : ''}>Valo API thật ${S.adapter.configured ? '' : '(chưa cấu hình, sẽ dùng mock)'}</option></select>
       <div class="note">Bộ 1 và 2 là dữ liệu hư cấu có nhãn. "Valo API thật" đọc qua adapter HTTP; lỗi thì tự rơi về mock và ghi rõ lý do.</div></div>
+    <div class="card form" id="valoImportCard"><b>Nối dữ liệu từ Valo</b>
+      <div class="note">Trong app Valo: mở Cố vấn AI → bấm "Chỉ sao chép dữ liệu" (JSON valo-financial-context). Dán vào đây hoặc chọn file JSON. Dữ liệu chỉ lưu trên máy đang chạy Valo Agent.</div>
+      <textarea id="valoPaste" rows="4" placeholder='{"schema":"valo-financial-context", ...}' style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font:12px ui-monospace,monospace"></textarea>
+      <div class="inline"><input type="file" id="valoFile" accept="application/json,.json"><button class="btn primary" id="btnImport">Nhập dữ liệu Valo</button></div></div>
     <div class="card form"><b>Dữ liệu đổi → agent đánh giá lại theo sự kiện</b>
       <div class="inline"><label>Số dư quỹ dự phòng (đ)<input id="inEf" type="number" value="${d.accounts.find((a) => a.isEmergencyFund)?.balance ?? 0}" step="1000000"></label>
       <label>Chi tiêu tháng gần nhất (đ)<input id="inSp" type="number" value="" placeholder="giữ nguyên"></label></div>
@@ -274,6 +278,8 @@ function renderData() {
     <h4>Tài khoản (đọc qua adapter)</h4>
     <div class="card"><ul class="clean">${d.accounts.map((a) => `<li class="row"><span>${esc(a.name)} <span class="note">${esc(a.assetClass)}</span></span><span>${vnd(a.balance)}</span></li>`).join('')}</ul><div class="note">Số dư hiển thị nguyên trạng từ nguồn dữ liệu.</div></div>`;
   $('#ds').addEventListener('change', (e) => act('/dataset', { dataset: e.target.value }));
+  $('#valoFile').addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) $('#valoPaste').value = await f.text(); });
+  $('#btnImport').addEventListener('click', () => { const t = $('#valoPaste').value.trim(); if (t) act('/valo/import', { data: t }); });
   $('#btnUpd').addEventListener('click', () => act('/data/update', { emergencyFund: $('#inEf').value, lastMonthSpending: $('#inSp').value }));
   document.querySelectorAll('[data-days]').forEach((b) => b.addEventListener('click', () => act('/time/advance', { days: Number(b.dataset.days) })));
   $('#btnReset').addEventListener('click', () => { if (confirm('Xoá toàn bộ hồ sơ coaching demo?')) act('/reset', {}); });
@@ -390,7 +396,7 @@ window.Onboard = (() => {
     const f = box.querySelector('#obForm');
     if (f) f.onsubmit = (e) => { e.preventDefault(); const t = box.querySelector('#obIn').value.trim(); if (t) call('/onboarding/answer', { text: t }); };
     const cn = box.querySelector('#obConnect');
-    if (cn) cn.onclick = () => { _a('/dataset', { dataset: 'valo' }); document.querySelector('[data-tab=data]').click(); };
+    if (cn) cn.onclick = () => { document.querySelector('[data-tab=data]').click(); setTimeout(() => document.querySelector('#valoPaste')?.focus(), 50); };
     const rs = box.querySelector('#obRestart');
     if (rs) rs.onclick = () => call('/onboarding/start', {});
   }
