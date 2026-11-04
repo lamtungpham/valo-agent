@@ -129,6 +129,16 @@ Chọn "Valo API thật" ở tab Dữ liệu. Nếu chưa cấu hình hoặc API
 
 Tab "Chưa dùng Valo": 13 câu khai vấn, mỗi tin một câu, bắt đầu từ điều khiến người dùng chưa yên tâm nhất rồi mới tới thu nhập, chi tiêu, nợ, quỹ dự phòng, mục tiêu, khẩu vị rủi ro. Kết thúc bằng bản đồ tài chính trực quan (dòng tiền, tài sản và nợ, quỹ khẩn cấp, mục tiêu so với khả năng), hồ sơ tạm, và lời mời nối Valo.
 
+## Deploy lên Vercel
+
+Repo đã có sẵn `vercel.json` và `api/index.js`: trang tĩnh lấy từ `public/`, mọi đường `/api/*` chạy chung handler với `npm start` (tối đa 60 giây mỗi lượt vì Muse Spark suy luận khá lâu).
+
+1. Import repo vào Vercel, không cần build command.
+2. Trong Project Settings → Environment Variables, thêm `META_API_KEY` (bắt buộc để có AI) và tuỳ chọn `META_MAX_TOKENS`, `META_REASONING_EFFORT`.
+3. Redeploy.
+
+Trên Vercel, mỗi trình duyệt có một hồ sơ riêng (cookie `va_uid`), lưu ở `/tmp` của máy chủ nên chỉ là tạm thời: hồ sơ có thể mất khi Vercel khởi động lại máy chủ. Muốn lưu bền thì chạy cục bộ bằng `npm start`.
+
 ## Test
 
 `npm test` chạy 16 test: lịch sử BHXH hai bộ dữ liệu, tuổi luật, tỷ lệ hưởng, dự phóng lương hưu, thanh trượt, quỹ dự phòng và mô phỏng, Agent Kiểm chứng chặn số bịa, adapter Valo qua HTTP, dữ liệu dán và fallback.
