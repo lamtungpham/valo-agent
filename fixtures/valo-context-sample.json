@@ -1,0 +1,278 @@
+{
+  "_label": "DỮ LIỆU HƯ CẤU — Mr. Sample ở định dạng valo-financial-context v4.0, chỉ để kiểm thử adapter Valo.",
+  "schema": "valo-financial-context",
+  "schemaVersion": "4.0",
+  "exportedAt": "2026-10-31T09:00:00+07:00",
+  "currency": "VND",
+  "profile": {
+    "currentAge": 31,
+    "retirementAge": 58,
+    "lifeExpectancy": 85,
+    "riskTolerance": "MODERATE"
+  },
+  "balanceSheet": {
+    "totalAssetsVND": 131000000,
+    "totalLiabilitiesVND": 4000000,
+    "netWorthVND": 127000000
+  },
+  "monthlyCashflow": {
+    "incomeVND": 18000000,
+    "expenseVND": 12500000,
+    "surplusVND": 5500000
+  },
+  "emergencyFund": {
+    "amountVND": 20000000,
+    "coverageMonths": 1.6
+  },
+  "assets": [
+    {
+      "name": "Quỹ dự phòng",
+      "category": "CASH",
+      "valueVND": 20000000
+    },
+    {
+      "name": "Tài khoản lương",
+      "category": "CASH",
+      "valueVND": 6000000
+    },
+    {
+      "name": "Tiết kiệm mua nhà",
+      "category": "SAVINGS",
+      "valueVND": 60000000
+    },
+    {
+      "name": "Chứng chỉ quỹ cổ phiếu",
+      "category": "STOCK",
+      "valueVND": 30000000
+    },
+    {
+      "name": "Vàng",
+      "category": "GOLD",
+      "valueVND": 15000000
+    }
+  ],
+  "liabilities": [
+    {
+      "name": "Thẻ tín dụng",
+      "category": "CREDIT_CARD",
+      "balanceVND": 4000000
+    }
+  ],
+  "goals": [
+    {
+      "id": "house",
+      "name": "Mua nhà (khoản trả trước)",
+      "targetAge": 36,
+      "nominalAmountAtTargetVND": 800000000,
+      "allocatedFromCurrentNetWorthVND": 60000000
+    }
+  ],
+  "socialInsurance": {
+    "schemaVersion": 1,
+    "history": {
+      "schemaVersion": 1,
+      "enabled": true,
+      "historyComplete": true,
+      "birthDate": "1995-05-01",
+      "sex": "male",
+      "records": [
+        {
+          "id": "history-2018",
+          "year": 2018,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 10000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2019",
+          "year": 2019,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 10000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2020",
+          "year": 2020,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 10000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2021",
+          "year": 2021,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 15000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2022",
+          "year": 2022,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 15000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2023",
+          "year": 2023,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 15000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2024",
+          "year": 2024,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 20000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2025",
+          "year": 2025,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 20000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        },
+        {
+          "id": "history-2026",
+          "year": 2026,
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "status": "contributed",
+          "monthlySalaryVND": 20000000,
+          "salaryRegime": "employer",
+          "company": "Công ty Hư Cấu"
+        }
+      ]
+    }
+  }
+}

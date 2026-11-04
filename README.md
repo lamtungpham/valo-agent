@@ -1,0 +1,116 @@
+Ý tưởng lấy cảm hứng từ app quản lý tài chính cá nhân làm trước đó (Valo); toàn bộ code trợ lý trong repo này được viết mới trong tuần thi 27/10–05/11/2026.
+
+# Valo Agent
+
+AI Agent đóng vai **coach tài chính cá nhân bằng tiếng Việt**. Không phải chatbot hỏi gì đáp nấy: agent có hồ sơ coaching bền vững, đi theo khung **GROW**, chốt **cam kết có hạn**, theo dõi và **hỏi lại cam kết chưa làm**, tự lên tiếng khi dữ liệu **lệch ngưỡng**. Mọi con số do **engine xác định** tính; LLM (Muse Spark) chỉ kể chuyện.
+
+> Demo chỉ dùng dữ liệu **hư cấu** của nhân vật "Mr. Sample". Không có dữ liệu thật, key hay token nào trong repo.
+
+## Phần có sẵn trước và phần làm mới
+
+| | Nội dung |
+|---|---|
+| **Có sẵn trước tuần thi** (không nằm trong repo này) | Ý tưởng sản phẩm và app quản lý tài chính Valo; định dạng xuất dữ liệu `valo-financial-context` v4.0 mà adapter đọc vào. |
+| **Làm mới trong tuần thi** (toàn bộ repo này) | Engine tài chính và BHXH, multi-agent, vòng GROW và cam kết, đánh giá theo sự kiện, tool mô phỏng, adapter Valo và mock, nhánh hỏi coaching, giao diện, test. Không chép code từ app cũ. |
+
+## Chạy bằng một lệnh
+
+Cần Node.js 18 trở lên. Không cần `npm install` (không có thư viện ngoài).
+
+```bash
+npm start
+```
+
+Mở http://localhost:3000. Chạy test: `npm test`.
+
+Muốn bật AI, sao chép `.env.example` thành `.env` và điền `META_API_KEY`. Không có key thì app vẫn chạy đầy đủ: số vẫn do engine tính, lời coach dùng lời dẫn mẫu và được ghi nhãn "Lời dẫn mẫu (chưa gọi được AI)".
+
+| Biến | Ý nghĩa |
+|---|---|
+| `META_API_KEY` | Key Meta Model API cho Muse Spark |
+| `META_API_BASE_URL` | Mặc định `https://api.meta.ai/v1` |
+| `META_MODEL` | Mặc định `muse-spark-1.3` |
+| `VALO_API_BASE_URL`, `VALO_API_TOKEN` | Adapter Valo thật qua HTTP |
+| `VALO_CONTEXT_FILE` | Hoặc đọc file JSON xuất từ Valo |
+| `PORT` | Cổng web, mặc định 3000 |
+
+## Kiến trúc
+
+```
+                 ┌──────────── Agent chính (điều phối) ─────────────┐
+                 │  chỉ nhận tóm tắt, quyết định bước kế tiếp        │
+                 └──────────────────────────────────────────────────┘
+ Adapter Valo ─▶ Agent Thu thập ─▶ Agent Phân tích ─▶ Agent Coach ─▶ Agent Kiểm chứng ─▶ Người dùng
+ (API | mock)    chỉ đọc, đóng     chỉ chạy engine,     chỉ đối thoại,  soát số, gắn nguồn,
+                 băng snapshot     phát sự kiện ngưỡng  Muse Spark      ngày dữ liệu, công thức
+```
+
+| Thư mục | Vai trò |
+|---|---|
+| `src/engine/` | Engine xác định: `finance.js` (quỹ dự phòng, tỷ trọng tài sản, chi tiêu, mục tiêu, what-if, A/B, sốc mất việc), `bhxh.js` (lịch sử theo năm/tháng, tháng ngắt quãng, tuổi luật, tỷ lệ hưởng, lương hưu, trạng thái theo tuổi), `facts.js` (mỗi số mang nhãn, công thức, nguồn, ngày dữ liệu) |
+| `src/agents/collector.js` | Agent Thu thập: chỉ đọc qua adapter |
+| `src/agents/analyst.js` | Agent Phân tích: chạy engine, trả sự kiện có cấu trúc khi lệch ngưỡng |
+| `src/agents/coach.js` | Agent Coach: gọi Muse Spark, chỉ được chèn mã `{{fact_id}}`, không được viết số |
+| `src/agents/verifier.js` | Agent Kiểm chứng: chặn mọi chữ số hoặc số viết bằng chữ ngoài fact, mã fact bịa; khi chặn thì dùng lời dẫn mẫu |
+| `src/agents/orchestrator.js` | Agent chính: vòng GROW, trách nhiệm giải trình, đánh giá theo sự kiện, tóm tắt định kỳ |
+| `src/agents/tools.js` | Tool hành động: tạo mục tiêu, đặt nhắc, what-if, so sánh A/B, mô phỏng sốc |
+| `src/agents/onboarding.js` | Nhánh chưa dùng Valo: 13 câu khai vấn, bản đồ tài chính, hồ sơ tạm |
+| `src/adapters/` | `valoAdapter.js` (interface), `mockAdapter.js` (dữ liệu hư cấu), `httpAdapter.js` + `valoContextMapper.js` (Valo thật), `index.js` (chọn adapter, fallback mock có nhãn) |
+| `src/llm/muse.js` | Client Muse Spark (OpenAI-compatible `/chat/completions`), key từ biến môi trường |
+| `src/store.js` | Hồ sơ coaching bền vững trong `data/store.json` (đã gitignore) |
+| `fixtures/` | Dữ liệu hư cấu Mr. Sample: bộ 1 liên tục, bộ 2 thiếu 03-05/2022, bản định dạng Valo để test adapter |
+| `public/` | Giao diện web thuần HTML/CSS/JS |
+
+### Vì sao LLM không thể bịa số
+
+1. Agent Coach nhận danh sách fact kèm mã, được yêu cầu chỉ chèn `{{ma_fact}}`.
+2. Agent Kiểm chứng bỏ placeholder ra rồi quét văn bản: còn chữ số, còn từ chỉ số như "triệu", "tỷ", "phần trăm", hoặc có mã fact không tồn tại thì **chặn cả bản nháp** và thay bằng lời dẫn mẫu.
+3. Giao diện thay mã bằng giá trị engine, hiện dạng chip xanh. Rê chuột vào chip để xem công thức, nguồn, ngày dữ liệu. Mỗi tin có nhãn "Nhận định của AI · Muse Spark" hoặc "Lời dẫn mẫu", tách bạch với bảng "Số tính được bởi engine".
+
+## Vòng lặp P0 đầu cuối
+
+1. Mở app: Agent Phân tích thấy quỹ dự phòng **1,6 tháng < 3 tháng** và tự lên tiếng (cùng cảnh báo chi tiêu vượt ngân sách, tuổi nghỉ dự định sớm hơn tuổi luật).
+2. Bấm "Bắt đầu phiên coaching". Coach hỏi đúng ba câu GROW: **Goal** (quỹ bao nhiêu tháng), **Reality** (điều gì đang cản trở), **Options** (ba mức để riêng mỗi tuần, engine tính số tháng về đích).
+3. **Will**: coach đề xuất kế hoạch và cam kết có hạn, ví dụ "Để riêng 500.000 đ vào quỹ dự phòng trước 11/11/2026". Bấm "Tôi cam kết" để ghi.
+4. Tab Dữ liệu → "Tua 7 ngày": agent nhắc cam kết tới hạn và gửi tóm tắt tuần. "Tua 1 ngày" nữa: cam kết quá hạn, bấm "Bắt đầu / tiếp tục phiên", coach **nhắc lại cam kết cũ và hỏi vướng ở đâu**, ghi vào lịch sử vi phạm rồi mở vòng GROW mới.
+5. Tab BHXH: lưới đóng theo năm và tháng, số tháng ngắt quãng, tuổi luật so với tuổi dự định, lương hưu dự kiến, **thanh trượt 31-85 tuổi**. Tab Dữ liệu → chọn "Bộ 2" để thấy engine báo đúng **3 tháng ngắt quãng 03, 04, 05/2022**.
+
+Phiên đang dở được lưu: tải lại trang hoặc khởi động lại server, coach tiếp tục đúng bước cũ.
+
+## Kết quả engine với Mr. Sample (hư cấu)
+
+Giả định: nam, sinh 05/1995 (31 tuổi), đóng BHXH 01/2018-10/2026, lương 10 triệu (2018-2020), 15 triệu (2021-2023), 20 triệu (2024-2026), dự phóng 20 triệu tới 58 tuổi.
+
+| Chỉ số | Bộ 1 | Bộ 2 |
+|---|---|---|
+| Tháng đã đóng | 106 | 103 |
+| Tháng ngắt quãng | 0 | 3 (03/2022, 04/2022, 05/2022) |
+| Tổng tháng tới 58 tuổi | 424 (35 năm 4 tháng, tính tỷ lệ 35,5 năm) | 421 |
+| Bình quân tiền lương | 18.726.415 đ | 18.752.969 đ |
+| Tỷ lệ hưởng | 75% | 75% |
+| Lương hưu dự kiến | 14.044.811 đ/tháng | 14.064.727 đ/tháng |
+| Tuổi luật | 62 tuổi, đủ tuổi 05/2057 | như bên |
+| Chờ từ 58 tới 62 | 48 tháng, cần tự lo 576.000.000 đ (12 triệu/tháng, giá hôm nay) | như bên |
+
+Căn cứ đơn giản hoá: Bộ luật Lao động 2019 Điều 169 và Nghị định 135/2020 (tuổi nghỉ hưu điều kiện bình thường), Luật BHXH 2024 (tối thiểu 15 năm; nam 45% cho 20 năm, +2%/năm, tối đa 75%; trợ cấp một lần cho số năm vượt mốc 75%). Giả định hệ số trượt giá bằng 1 và lương hưu giữ nguyên danh nghĩa. Đây là công cụ lập kế hoạch, không phải xác nhận của cơ quan BHXH.
+
+## Adapter Valo (P1)
+
+`ValoDataAdapter.getSnapshot()` trả một snapshot chuẩn hoá (mô tả trong `src/adapters/valoAdapter.js`). Hai bản cài đặt:
+
+- `MockValoAdapter`: đọc `fixtures/mr-sample*.json`, luôn gắn nhãn "DỮ LIỆU HƯ CẤU".
+- `HttpValoAdapter`: `GET {VALO_API_BASE_URL}/financial-context` (Bearer `VALO_API_TOKEN` nếu có) hoặc đọc `VALO_CONTEXT_FILE`, nhận định dạng `valo-financial-context` v4.0 mà app Valo đang xuất, rồi ánh xạ sang snapshot.
+
+Chọn "Valo API thật" ở tab Dữ liệu. Nếu chưa cấu hình hoặc API lỗi, app tự dùng mock và hiện rõ lý do trên giao diện.
+
+## Nhánh chưa dùng Valo (P2)
+
+Tab "Chưa dùng Valo": 13 câu khai vấn, mỗi tin một câu, bắt đầu từ điều khiến người dùng chưa yên tâm nhất rồi mới tới thu nhập, chi tiêu, nợ, quỹ dự phòng, mục tiêu, khẩu vị rủi ro. Kết thúc bằng bản đồ tài chính trực quan (dòng tiền, tài sản và nợ, quỹ khẩn cấp, mục tiêu so với khả năng), hồ sơ tạm, và lời mời nối Valo.
+
+## Test
+
+`npm test` chạy 15 test: lịch sử BHXH hai bộ dữ liệu, tuổi luật, tỷ lệ hưởng, dự phóng lương hưu, thanh trượt, quỹ dự phòng và mô phỏng, Agent Kiểm chứng chặn số bịa, adapter Valo qua HTTP và fallback.
+
+## Lưu ý
+
+Valo Agent là công cụ giáo dục và lập kế hoạch, không phải lời khuyên đầu tư. Không khuyến nghị mua bán sản phẩm tài chính cụ thể.
