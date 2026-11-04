@@ -143,6 +143,10 @@ Chọn "Valo API thật" ở tab Dữ liệu. Nếu chưa cấu hình hoặc API
 
 Tab "Chưa dùng Valo": 13 câu khai vấn, mỗi tin một câu, bắt đầu từ điều khiến người dùng chưa yên tâm nhất rồi mới tới thu nhập, chi tiêu, nợ, quỹ dự phòng, mục tiêu, khẩu vị rủi ro. Kết thúc bằng bản đồ tài chính trực quan (dòng tiền, tài sản và nợ, quỹ khẩn cấp, mục tiêu so với khả năng), hồ sơ tạm, và lời mời nối Valo.
 
+## Lịch sử hội thoại và nút Xoá khung chat
+
+Mỗi lần bấm "Bắt đầu / tiếp tục phiên" khi không có phiên dở, đổi bộ dữ liệu, nhập dữ liệu Valo hoặc khai xong hồ sơ, hội thoại cũ được cất vào **Lịch sử** (nút trên đầu khung chat) để phiên mới bắt đầu trên khung sạch. Nút **Xoá khung chat** cũng cất hội thoại vào Lịch sử, giữ lại câu hỏi đang dở nếu còn phiên. Cam kết, mục tiêu và hồ sơ coaching không bị ảnh hưởng.
+
 ## Giao diện tiếng Anh
 
 Nút **English / Tiếng Việt** trên thanh đầu trang đổi ngôn ngữ (mặc định tiếng Việt, nhớ theo trình duyệt). Ở tiếng Anh:

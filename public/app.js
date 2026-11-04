@@ -107,6 +107,7 @@ function paintLive() {
 async function act(path, body) {
   if (busy) return;
   busy = true;
+  showArchive = false;
   setBusy(true);
   try {
     const j = await apiLive(path, body);
@@ -184,18 +185,31 @@ function verifyBadge(m) {
   return `<details style="display:inline"><summary class="badge ${v.passed ? '' : 'warn'}" style="cursor:pointer;list-style:none">${v.passed ? 'Đã kiểm chứng ✓' : 'Kiểm chứng đã sửa ⚠'}</summary><ul class="checks">${v.checks.map((c) => `<li>${esc(c.msg)}</li>`).join('')}</ul></details>`;
 }
 
-function renderChat() {
-  const box = $('#chat');
-  const sevOf = Object.fromEntries((S.alerts || []).map((a) => [a.messageId, a.severity]));
-  box.innerHTML = S.chat.map((m) => {
-    if (m.role === 'user') return `<div class="msg user">${esc(m.text)}</div>`;
-    const label = m.kind === 'coach' ? (STEP[m.step] || 'Coach') : KIND[m.kind] || m.kind;
-    return `<div class="msg ${m.kind} sev-${sevOf[m.id] || ''}">
+let showArchive = false;
+function msgHtml(m, sevOf = {}) {
+  if (m.role === 'user') return `<div class="msg user">${esc(m.text)}</div>`;
+  const label = m.kind === 'coach' ? (STEP[m.step] || 'Coach') : KIND[m.kind] || m.kind;
+  return `<div class="msg ${m.kind} sev-${sevOf[m.id] || ''}">
       <div class="meta"><b>${esc(label)}</b> · ${esc(fmt(m.date))} ${aiBadge(m)} ${verifyBadge(m)}</div>
       <div class="body">${renderSegments(m)}</div>
       ${factTable(m.facts)}
     </div>`;
-  }).join('') || '<p class="note">Chưa có tin nhắn.</p>';
+}
+function renderArchive(box) {
+  const list = S.archive || [];
+  box.innerHTML = `<div class="archive-head"><b>Lịch sử hội thoại (${list.length})</b><button class="btn small" id="btnBack">Quay lại phiên hiện tại</button></div>
+    ${list.map((x, i) => `<details class="archive"${i === 0 ? ' open' : ''}><summary>${esc(x.title)} · ${esc(fmt(x.from))}${x.to && x.to !== x.from ? ` → ${esc(fmt(x.to))}` : ''} · ${x.count} tin</summary>${x.messages.map((m) => msgHtml(m)).join('')}</details>`).join('') || '<p class="note">Chưa có hội thoại nào được lưu trữ.</p>'}
+    <p class="note">Mỗi lần mở phiên mới, nhập dữ liệu mới hoặc bấm "Xoá khung chat", hội thoại cũ được cất vào đây. Cam kết, mục tiêu và hồ sơ coaching vẫn giữ nguyên.</p>`;
+  box.scrollTop = 0;
+  $('#btnBack').onclick = () => { showArchive = false; renderChat(); };
+}
+
+function renderChat() {
+  const box = $('#chat');
+  $('#btnArchive').textContent = `Lịch sử${S.archive?.length ? ` (${S.archive.length})` : ''}`;
+  if (showArchive) { renderArchive(box); $('#chips').innerHTML = ''; return; }
+  const sevOf = Object.fromEntries((S.alerts || []).map((a) => [a.messageId, a.severity]));
+  box.innerHTML = S.chat.map((m) => msgHtml(m, sevOf)).join('') || '<p class="note">Khung chat trống. Bấm "Bắt đầu / tiếp tục phiên" để tôi tổng kết tình hình và cùng chọn việc cần làm.</p>';
   box.scrollTop = box.scrollHeight;
   const last = [...S.chat].reverse().find((m) => m.role === 'agent');
   const chips = last && last === S.chat[S.chat.length - 1] ? last.chips || [] : [];
@@ -223,7 +237,9 @@ $('#composer').addEventListener('submit', (e) => {
   $('#msg').value = '';
   act('/coach/reply', { text: t });
 });
-$('#btnStart').addEventListener('click', () => act('/coach/start', {}));
+$('#btnStart').addEventListener('click', () => { showArchive = false; act('/coach/start', {}); });
+$('#btnArchive').addEventListener('click', () => { showArchive = !showArchive; renderChat(); });
+$('#btnClear').addEventListener('click', () => { showArchive = false; act('/chat/clear', {}); });
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;

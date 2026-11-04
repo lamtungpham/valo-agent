@@ -21,7 +21,8 @@ function freshUser(id) {
     reminders: [],
     session: null, // phiên GROW đang dở
     sessions: [], // lịch sử phiên đã xong (tóm tắt)
-    chat: [], // tin nhắn hiển thị
+    chat: [], // tin nhắn hiển thị (chỉ phiên hiện tại)
+    chatArchive: [], // hội thoại cũ đã lưu trữ khi mở phiên mới hoặc bấm Xoá khung chat
     alerts: [], // cảnh báo chủ động đã phát
     alertKeys: {}, // chống lặp: key → giá trị đã báo
     summaries: [], // tóm tắt định kỳ

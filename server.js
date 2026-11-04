@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getUser, save, resetUser } from './src/store.js';
-import { startSession, reply, onDataChange, markCommitment, viewState } from './src/agents/orchestrator.js';
+import { startSession, reply, onDataChange, markCommitment, viewState, archiveChat } from './src/agents/orchestrator.js';
 import { addDays } from './src/agents/analyst.js';
 import { museStatus } from './src/llm/muse.js';
 import { adapterStatus } from './src/adapters/index.js';
@@ -73,7 +73,7 @@ async function route(req, res, path, user, uid) {
   const state = async () => json(res, 200, await viewState(user, ext()));
 
   if (path === '/api/state' && req.method === 'GET') {
-    if (!user.chat.length) await onDataChange(user, 'first-open');
+    if (!user.chat.length && !user.chatArchive?.length) await onDataChange(user, 'first-open');
     return state();
   }
   if (path === '/api/coach/start') { await startSession(user); return state(); }
@@ -126,6 +126,12 @@ async function route(req, res, path, user, uid) {
   }
   if (path === '/api/commitments/mark') { await markCommitment(user, body.id, body.status); return state(); }
   if (path === '/api/tools/run') { const result = await runTool(user, body); save(); return json(res, 200, { result, state: await viewState(user, ext()) }); }
+  if (path === '/api/chat/clear') {
+    // cất vào lưu trữ, giữ câu hỏi đang dở nếu còn phiên hoặc đang khai hồ sơ
+    archiveChat(user, 'Đã xoá khỏi khung chat', { keepLast: Boolean(user.session || user.onboarding?.active || user.pendingFocus?.length) });
+    save();
+    return state();
+  }
   if (path === '/api/lang') { user.lang = body.lang === 'en' ? 'en' : 'vi'; save(); return state(); }
   if (path === '/api/selfreport/restart') {
     user.selfReport = null;
