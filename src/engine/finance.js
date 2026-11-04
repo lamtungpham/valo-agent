@@ -91,6 +91,7 @@ export function financeFacts(d, { source, asOf }) {
     fact('monthly_income', { label: 'Thu nhập ròng tháng', value: d.monthlyIncome, unit: 'vnd', formula: 'Lương thực nhận sau bảo hiểm và thuế', source, asOf }),
     fact('ef_months', { label: 'Quỹ dự phòng đủ dùng', value: ef.months, unit: 'months', formula: 'Số dư quỹ dự phòng ÷ chi tiêu trung bình tháng', source: 'Engine tài chính', asOf }),
     fact('ef_threshold', { label: 'Ngưỡng an toàn tối thiểu', value: THRESHOLDS.emergencyMinMonths, unit: 'months', formula: 'Ngưỡng cấu hình của agent', source: 'Cấu hình Valo Agent', asOf }),
+    fact('ef_target', { label: 'Mức quỹ dự phòng khuyến nghị', value: THRESHOLDS.emergencyTargetMonths, unit: 'months', formula: 'Ngưỡng cấu hình của agent', source: 'Cấu hình Valo Agent', asOf }),
     fact('ef_shortfall_3', { label: 'Còn thiếu để đủ 3 tháng', value: emergencyFund(d.emergencyFund, d.monthlyExpense, 3).shortfall, unit: 'vnd', formula: '3 × chi tiêu tháng − số dư quỹ', source: 'Engine tài chính', asOf }),
     fact('ef_shortfall_6', { label: 'Còn thiếu để đủ 6 tháng', value: emergencyFund(d.emergencyFund, d.monthlyExpense, 6).shortfall, unit: 'vnd', formula: '6 × chi tiêu tháng − số dư quỹ', source: 'Engine tài chính', asOf }),
     fact('net_worth', { label: 'Tài sản ròng', value: alloc.netWorth, unit: 'vnd', formula: 'Tổng tài sản − tổng nợ', source: 'Engine tài chính', asOf }),
