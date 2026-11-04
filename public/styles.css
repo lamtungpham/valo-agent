@@ -205,3 +205,28 @@ ul.clean { list-style: none; padding: 0; margin: 0; }
 .typing::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: pulse 1s infinite; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--line-hover); border-radius: 8px; }
+
+/* Sơ đồ multi-agent */
+.ag-wrap { overflow-x: auto; padding: 8px; }
+.ag-svg { width: 100%; max-width: 520px; height: auto; display: block; margin: 0 auto; }
+.ag-svg text { fill: var(--muted); font-family: inherit; }
+.ag-node .ic { font-size: 26px; fill: var(--ink); }
+.ag-node .nm { font-size: 15px; font-weight: 700; fill: var(--ink); }
+.ag-node .rl, .ag-svg .rl { font-size: 12px; }
+.ag-svg .warnx { fill: var(--warn); }
+.ag-node .dt { font-size: 12.5px; font-weight: 600; fill: var(--accent-text, var(--accent)); }
+.ag-node .core { fill: var(--overlay); stroke: var(--line); stroke-width: 1.5; transition: all .3s; }
+.ag-node .halo { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0; }
+.ag-node.on .core { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 14%, var(--overlay)); animation: agPop .5s ease-out both; animation-delay: var(--d); }
+.ag-node.on .halo { animation: agHalo 2.4s ease-out infinite; animation-delay: var(--d); }
+.ag-node.warn .core { stroke: var(--warn); }
+.ag-node.warn .halo { stroke: var(--warn); }
+.ag-link { stroke: var(--line); stroke-width: 2; stroke-dasharray: 6 6; animation: agDash 1s linear infinite; }
+.ag-pulse { fill: var(--accent); filter: drop-shadow(0 0 4px var(--accent)); }
+.ag-back { fill: none; stroke: var(--pos); stroke-width: 1.5; stroke-dasharray: 4 6; opacity: .7; animation: agDash 1.6s linear infinite reverse; }
+.ag-veto { fill: none; stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 6; opacity: .7; animation: agDash 1.6s linear infinite; }
+@keyframes agDash { to { stroke-dashoffset: -24; } }
+@keyframes agHalo { 0% { opacity: .7; transform: scale(.8); } 100% { opacity: 0; transform: scale(1.25); } }
+@keyframes agPop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .ag-svg * { animation: none !important; } .ag-pulse { display: none; } }
+.ag-node .halo, .ag-node .core { transform-box: fill-box; transform-origin: center; }

@@ -186,6 +186,8 @@ function prevCommitFacts(user, c) {
 async function step(user, a, logs, o) {
   const s = user.session;
   s.step = o.step;
+  s.lastQuestion = o.question || null;
+  s.lastChips = o.chips || [];
   const extraFacts = [...(o.extraFacts || []), ...(s ? sessionFacts(user, s) : [])];
   return compose(user, a, { input: true, ...o, extraFacts }, logs);
 }
@@ -455,10 +457,72 @@ async function reviewMissed(user, a, logs, c) {
 }
 
 async function okMessage(user, a, logs) {
+  const asOf = fmtDate(a.snap.asOf);
+  const next = a.fin.goals.find((g) => g.progressPct < 100);
+  const efPart = 'Quỹ dự phòng của anh đủ {{ef_months}} chi tiêu, đã vượt mức khuyến nghị {{ef_target}}, nên đây không còn là việc gấp.';
+  const extraFacts = [fact('ef_target', { label: 'Mức quỹ dự phòng khuyến nghị', value: THRESHOLDS.emergencyTargetMonths, unit: 'months', formula: 'Ngưỡng cấu hình của agent', source: 'Cấu hình Valo Agent', asOf })];
+  let o;
+  if (next) {
+    extraFacts.push(fact('next_goal', { label: 'Mục tiêu kế tiếp', value: next.name, unit: 'text', formula: 'Mục tiêu đầu tiên chưa đạt đủ tiền', source: a.snap.meta.label, asOf }));
+    o = {
+      intent: 'Quỹ dự phòng đã đủ: ghi nhận, rồi chuyển sang mục tiêu kế tiếp chưa xong, gợi ý một công cụ cụ thể',
+      factIds: ['ef_months', 'ef_target', 'next_goal', `goal_${next.id}_progress`, `goal_${next.id}_months`],
+      template: `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{goal_${next.id}_progress}}, còn khoảng {{goal_${next.id}_months}} nếu giữ mức góp hiện tại. Anh muốn thử xem góp thêm mỗi tháng thì về đích sớm bao nhiêu không?`,
+      chips: [{ label: 'Mô phỏng góp thêm cho mục tiêu này', value: 'tool:what_if' }, { label: 'Mô phỏng sốc mất việc', value: 'tool:shock_job_loss' }, { label: 'Tạo mục tiêu mới', value: 'ui:tools' }],
+    };
+  } else if (a.factMap.retire_gap?.value > 0) {
+    o = {
+      intent: 'Quỹ dự phòng và các mục tiêu hiện có đều đã đủ: ghi nhận, rồi chỉ ra khoảng trống hưu trí là việc lớn tiếp theo, hỏi người dùng muốn đi hướng nào',
+      factIds: ['ef_months', 'ef_target', 'age_planned', 'age_legal', 'retire_gap'],
+      template: `${efPart} Các mục tiêu hiện có cũng đã đủ tiền. Điểm còn hở lớn nhất là giai đoạn từ tuổi nghỉ dự định {{age_planned}} tới tuổi hưởng lương hưu {{age_legal}}: anh cần tự lo khoảng {{retire_gap}}. Anh muốn bắt đầu chuẩn bị cho khoảng này, hay đặt một mục tiêu mới?`,
+      chips: [{ label: 'Xem trợ lý BHXH', value: 'ui:bhxh' }, { label: 'Tạo mục tiêu mới', value: 'ui:tools' }],
+    };
+  } else {
+    o = {
+      intent: 'Mọi mục tiêu đã đủ: ghi nhận cụ thể, mời đặt mục tiêu mới',
+      factIds: ['ef_months', 'ef_target'],
+      template: `${efPart} Các mục tiêu hiện có cũng đã đủ tiền. Điều gì anh muốn hướng tới tiếp theo?`,
+      chips: [{ label: 'Tạo mục tiêu mới', value: 'ui:tools' }],
+    };
+  }
+  await compose(user, a, { step: 'OK', extraFacts, ...o }, logs);
+}
+
+const CORE_FACTS = ['ef_balance', 'ef_months', 'ef_threshold', 'monthly_expense', 'monthly_income', 'monthly_surplus', 'net_worth', 'goal_main_progress', 'goal_main_months', 'bhxh_hist_months', 'bhxh_gap_count', 'bhxh_pension', 'age_legal', 'age_planned', 'retire_gap'];
+
+const isQuestion = (t) => /\?\s*$|là sao|nghĩa là gì|là gì|tại sao|vì sao|sao vậy|chưa hiểu|không hiểu|giải thích|khó hiểu|ý là/i.test(t);
+
+const STEP_HELP = {
+  ST: 'Mình hỏi câu này để biết nên đi nhanh hay chậm. Không có đáp án đúng sai: nếu anh còn lưỡng lự, mình sẽ không ép đặt mục tiêu.',
+  G: 'Quỹ dự phòng là khoản để riêng cho biến cố như mất việc hay ốm đau. Mức tối thiểu nên có là {{ef_threshold}} chi tiêu.',
+  S: 'Đây là thang tự chấm, không có đúng sai: thấp nhất là chưa có gì, cao nhất là quỹ đã đủ như anh muốn. Điểm này giúp đo tiến bộ của anh qua từng phiên.',
+  K: 'Mình hỏi để tìm cách đã từng hiệu quả với chính anh, thay vì áp một cách chung chung.',
+  O: 'Đây là ba mức để riêng mỗi tuần, engine đã tính sẵn bao lâu thì đủ quỹ. Hãy chọn mức anh chắc làm được, không cần chọn mức cao nhất.',
+  WO1: 'Hình dung trước cảm giác khi làm xong giúp anh có động lực thật lúc phải bắt tay vào làm.',
+  WO2: 'Trở ngại nội tại là thứ đến từ chính mình như quên, ngại, tiếc tiền, khác với hoàn cảnh bên ngoài. Biết trước thì mới lên được kế hoạch đối phó.',
+  WP: 'Kế hoạch nếu-thì gắn một tình huống cụ thể với một hành động cụ thể, để khi trở ngại xuất hiện anh không phải nghĩ lại từ đầu.',
+  WC: 'Thang tự tin giúp kiểm tra kế hoạch có vừa sức không. Nếu tự tin còn thấp, mình sẽ hạ số tiền xuống cho chắc tay.',
+  W: 'Đây là cam kết cụ thể cho tuần này. Bấm "Tôi cam kết" để mình ghi lại và nhắc anh, hoặc "Giảm mức một chút" nếu thấy căng.',
+};
+
+/** Câu hỏi ngoài luồng: trả lời thật bằng fact, rồi gợi ý bước tiếp theo cụ thể. */
+async function answerFreeform(user, a, logs, text) {
+  const last = [...user.chat].reverse().find((m) => m.role === 'agent');
+  const plain = last ? last.segments.map((x) => (x.t === 'text' ? x.v : (last.facts.find((f) => f.id === x.id) || a.factMap[x.id] || {}).display || '')).join('') : '';
+  const factIds = CORE_FACTS.filter((id) => a.factMap[id]);
+  const efLow = a.fin.ef.months < THRESHOLDS.emergencyTargetMonths;
   await compose(user, a, {
-    step: 'OK', intent: 'Quỹ dự phòng đã đủ mức khuyến nghị, chuyển sự chú ý sang mục tiêu chính và công cụ mô phỏng',
-    factIds: ['ef_months', 'goal_main_progress', 'goal_main_months'],
-    template: 'Quỹ dự phòng của anh đã đủ {{ef_months}}, đạt mức khuyến nghị. Mục tiêu chính đang đạt {{goal_main_progress}} và còn khoảng {{goal_main_months}} nếu giữ mức góp hiện tại. Anh có thể thử các công cụ mô phỏng để xem phương án nhanh hơn.',
+    step: 'QA', userAnswer: text,
+    intent: 'Người dùng hỏi ngoài luồng hoặc chưa hiểu tin trước. Trả lời thẳng câu hỏi bằng lời đơn giản, giải thích ý nghĩa các con số liên quan, rồi gợi ý một bước tiếp theo cụ thể',
+    extra: plain ? `Tin nhắn trước của coach: "${plain.slice(0, 600)}"` : undefined,
+    question: 'Anh muốn mình đi tiếp vào việc nào?',
+    factIds,
+    template: 'Mình nói rõ hơn nhé. Các con số có nền màu là do engine tính từ dữ liệu của anh, rê chuột vào để xem công thức. Tình hình hiện tại: quỹ dự phòng đủ {{ef_months}} chi tiêu, mỗi tháng anh dư {{monthly_surplus}} sau chi tiêu, mục tiêu chính đạt {{goal_main_progress}}. Anh muốn mình đi tiếp vào việc nào?',
+    chips: [
+      ...(efLow ? [{ label: 'Lên kế hoạch quỹ dự phòng', value: 'start' }] : [{ label: 'Xem việc nên làm tiếp', value: 'start' }]),
+      { label: 'Mô phỏng góp thêm cho mục tiêu', value: 'tool:what_if' },
+      { label: 'Xem trợ lý BHXH', value: 'ui:bhxh' },
+    ],
   }, logs);
 }
 
@@ -524,11 +588,33 @@ export async function reply(user, { text = '', value }) {
   logs.push(...pl);
   const s = user.session;
   if (!s) {
+    if (value === undefined || value === null || value === '') {
+      await answerFreeform(user, a, logs, answer);
+      logs.push({ agent: 'Agent chính', action: 'freeform' });
+      pushTrace(user, logs);
+      save();
+      return;
+    }
     pushTrace(user, logs);
     await startSession(user);
     return;
   }
   const d = s.data;
+  if ((value === undefined || value === null || value === '') && isQuestion(answer) && s.lastQuestion) {
+    // Người dùng hỏi lại trong phiên: giải thích bước hiện tại rồi hỏi lại đúng câu đó
+    const help = STEP_HELP[s.step] || 'Mình hỏi để hiểu anh hơn, anh cứ trả lời theo cảm nhận thật là được.';
+    await compose(user, a, {
+      step: s.step, userAnswer: answer, input: true,
+      intent: `Người dùng chưa hiểu câu hỏi ở bước ${s.step}. Giải thích ngắn vì sao hỏi và nên trả lời thế nào, rồi hỏi lại đúng ý câu cũ`,
+      question: s.lastQuestion,
+      factIds: ['ef_threshold', 'k_scale'], extraFacts: sessionFacts(user, s),
+      template: `${help} ${s.lastQuestion}`,
+      chips: s.lastChips || [],
+    }, logs);
+    pushTrace(user, logs);
+    save();
+    return;
+  }
   const reask = async () => {
     // câu trả lời không đọc được điểm: hỏi lại đúng bước hiện tại
     await compose(user, a, { step: s.step, intent: 'Người dùng chưa chấm điểm rõ, nhờ chọn một mức trên thang', question: 'Anh chọn giúp mình một mức nhé?', extraFacts: sessionFacts(user, s), factIds: ['k_scale'], template: 'Mình chưa đọc được mức điểm. Anh chọn giúp mình một mức trên thang {{k_scale}} nhé?', chips: scoreChips(), input: true }, logs);

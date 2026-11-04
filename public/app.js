@@ -118,7 +118,11 @@ const fmt = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 
 $('#chips').addEventListener('click', (e) => {
   const b = e.target.closest('.chip');
-  if (b) act('/coach/reply', { value: b.dataset.v, text: b.dataset.l });
+  if (!b) return;
+  const v = b.dataset.v || '';
+  if (v.startsWith('ui:')) { document.querySelector(`[data-tab=${v.slice(3)}]`)?.click(); return; }
+  if (v.startsWith('tool:')) { document.querySelector('[data-tab=tools]')?.click(); document.querySelector(`[data-tool=${v.slice(5)}]`)?.click(); return; }
+  act('/coach/reply', { value: v, text: b.dataset.l });
 });
 $('#composer').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -293,17 +297,60 @@ function renderData() {
   $('#btnReset').addEventListener('click', () => { if (confirm('Xoá toàn bộ hồ sơ coaching demo?')) act('/reset', {}); });
 }
 
+const AGENTS = [
+  { key: 'Thu thập', icon: '📥', role: 'Chỉ đọc dữ liệu', x: 70 },
+  { key: 'Phân tích', icon: '🧮', role: 'Chỉ chạy engine', x: 230 },
+  { key: 'Coach', icon: '💬', role: 'Chỉ đối thoại', x: 390 },
+  { key: 'Kiểm chứng', icon: '🛡️', role: 'Soát từng con số', x: 550 },
+  { key: 'Agent chính', icon: '🎯', role: 'Chỉ nhận tóm tắt', x: 710 },
+];
+function agentDetail(t) {
+  if (!t) return 'chưa chạy';
+  if (t.agent === 'Thu thập') return `${t.records?.spendingMonths ?? 0} tháng chi tiêu · ${t.records?.bhxhPeriods ?? 0} giai đoạn BHXH`;
+  if (t.agent === 'Phân tích') return `${t.facts} fact · ${t.events?.length || 0} sự kiện`;
+  if (t.agent === 'Coach') return t.mode === 'ai' ? 'Muse Spark viết lời dẫn' : /META_API_KEY/.test(t.note || '') ? 'lời dẫn mẫu (chưa có khoá AI)' : 'lời dẫn mẫu (AI lỗi, đã dự phòng)';
+  if (t.agent === 'Kiểm chứng') return t.passed ? `đạt ${t.checks?.length || 0} phép kiểm` : 'chặn bản AI, dùng bản mẫu';
+  if (t.agent === 'Agent chính') return `${t.action}${t.newAlerts?.length ? ` · ${t.newAlerts.length} cảnh báo mới` : ''}`;
+  return t.action;
+}
+let agentAnimKey = '';
 function renderAgents() {
   const item = (t) => {
     const rest = Object.entries(t).filter(([k]) => !['agent', 'at'].includes(k)).map(([k, v]) => `${k}: ${esc(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(' · ');
     return `<li class="${esc(t.agent.split(' ')[0])}"><b>${esc(t.agent)}</b> · ${rest}</li>`;
   };
+  const stamp = S.trace[0]?.at;
+  const run = S.trace.filter((t) => t.at === stamp);
+  const last = (k) => run.find((t) => t.agent === k);
+  const blocked = last('Kiểm chứng') && !last('Kiểm chứng').passed;
+  const Y = (i) => 56 + i * 104;
+  const nodes = AGENTS.map((n, i) => {
+    const t = last(n.key);
+    const cls = `ag-node${t ? ' on' : ''}${n.key === 'Kiểm chứng' && blocked ? ' warn' : ''}`;
+    return `<g class="${cls}" style="--d:${i * 0.45}s" transform="translate(110,${Y(i)})">
+      <circle class="halo" r="40"></circle><circle class="core" r="32"></circle>
+      <text class="ic" y="9" text-anchor="middle">${n.icon}</text>
+      <text class="nm" x="54" y="-8">${esc(n.key)}</text>
+      <text class="rl" x="54" y="11">${esc(n.role)}</text>
+      <text class="dt" x="54" y="30">${esc(agentDetail(t))}</text></g>`;
+  }).join('');
+  const links = AGENTS.slice(0, -1).map((n, i) => {
+    const d = `M110,${Y(i) + 40} L110,${Y(i + 1) - 40}`;
+    return `<path class="ag-link" d="${d}"></path>
+      <circle class="ag-pulse" r="5"><animateMotion dur="1.4s" begin="${i * 0.45}s" repeatCount="indefinite" path="${d}"/></circle>`;
+  }).join('');
+  const back = `<path class="ag-back" d="M70,${Y(4)} C20,${Y(4)} 20,${Y(0)} 70,${Y(0)}"></path>
+    <text class="rl" transform="translate(14,${(Y(0) + Y(4)) / 2}) rotate(-90)" text-anchor="middle">vòng lặp chủ động: sự kiện vượt ngưỡng → nhắc anh</text>
+    <path class="ag-veto" d="M150,${Y(3) - 12} C210,${Y(3) - 40} 210,${Y(2) + 40} 150,${Y(2) + 12}"></path>
+    <text class="rl warnx" x="200" y="${(Y(2) + Y(3)) / 2 + 4}">số lạ → chặn, dùng bản mẫu</text>`;
   $('#tab-agents').innerHTML = `
     <h3>Multi-agent chia vai</h3>
-    <div class="pipeline"><span>Thu thập: chỉ đọc</span>→<span>Phân tích: chỉ engine</span>→<span>Coach: chỉ đối thoại</span>→<span>Kiểm chứng: soát số</span>→<span>Agent chính: chỉ nhận tóm tắt</span></div>
+    <p class="note">Mỗi lần anh nhắn hoặc dữ liệu đổi, một lượt chạy đi qua 5 agent theo thứ tự. Nút sáng là agent đã chạy ở lượt gần nhất, dòng chữ dưới nút là việc nó vừa làm.</p>
+    <div class="card ag-wrap"><svg class="ag-svg" viewBox="0 0 520 520" role="img" aria-label="Sơ đồ luồng 5 agent">${back}${links}${nodes}</svg></div>
     <div class="card note">AI: Muse Spark <b>${esc(S.muse.model)}</b> qua ${esc(S.muse.baseUrl)} · ${S.muse.enabled ? 'đã cấu hình khoá' : 'chưa có META_API_KEY, Coach dùng lời dẫn mẫu'}. LLM không bao giờ nhận quyền tính số: nó chỉ chèn mã {{fact}} và Agent Kiểm chứng chặn mọi chữ số lạ.</div>
     <h4>Nhật ký gần nhất</h4>
     <ul class="clean trace">${S.trace.map(item).join('')}</ul>`;
+  agentAnimKey = stamp;
 }
 
 function render() {

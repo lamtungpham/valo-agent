@@ -4,9 +4,12 @@
   "private": true,
   "description": "Valo Agent: AI coach tài chính cá nhân tiếng Việt (GROW, engine xác định, multi-agent, Muse Spark).",
   "type": "module",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "check:ai": "node scripts/check-ai.js"
   }
 }

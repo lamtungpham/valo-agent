@@ -13,7 +13,7 @@ const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 export async function runTool(user, { tool, params = {} }) {
   const { a } = await pipeline(user);
   const asOf = fmtDate(a.snap.asOf);
-  const house = a.snap.goals.find((g) => g.id === 'house') || a.snap.goals[0] || { id: 'none', name: 'Mục tiêu', target: 0, current: 0, monthly: 0 };
+  const house = a.fin.goals.find((g) => g.id === params.goalId) || a.fin.goals.find((g) => g.progressPct < 100) || a.snap.goals[0] || { id: 'none', name: 'Mục tiêu', target: 0, current: 0, monthly: 0 };
   const F = (id, o) => fact(id, { asOf, source: 'Engine tài chính', ...o });
   let facts = [];
   let template = '';
@@ -24,13 +24,14 @@ export async function runTool(user, { tool, params = {} }) {
     const extra = Math.max(0, num(params.extra, 2000000));
     const r = whatIfExtra(house, extra);
     facts = [
+      F('t_goal_name', { label: 'Mục tiêu', value: house.name, unit: 'text', formula: 'Mục tiêu chưa đạt đủ tiền đầu tiên', source: a.snap.meta.label }),
       F('t_extra', { label: 'Tiết kiệm thêm mỗi tháng', value: extra, unit: 'vnd', formula: 'Tham số người dùng nhập' }),
       F('t_base', { label: `Về đích "${house.name}" với mức hiện tại`, value: r.baseMonths, unit: 'months', formula: `Làm tròn lên ((mục tiêu − đã có) ÷ ${house.monthly.toLocaleString('vi-VN')} đ)` }),
       F('t_new', { label: 'Về đích khi góp thêm', value: r.newMonths, unit: 'months', formula: 'Làm tròn lên ((mục tiêu − đã có) ÷ (góp hiện tại + góp thêm))' }),
       F('t_saved', { label: 'Về đích sớm hơn', value: r.monthsSaved, unit: 'months', formula: 'Số tháng hiện tại − số tháng mới' }),
     ];
-    intent = 'Diễn giải kết quả mô phỏng what-if tăng tiết kiệm cho mục tiêu mua nhà';
-    template = 'Nếu tiết kiệm thêm {{t_extra}} mỗi tháng, mục tiêu mua nhà về đích sau {{t_new}} thay vì {{t_base}}, tức sớm hơn {{t_saved}}.';
+    intent = 'Diễn giải kết quả mô phỏng what-if tăng tiết kiệm cho mục tiêu';
+    template = 'Nếu tiết kiệm thêm {{t_extra}} mỗi tháng, mục tiêu "{{t_goal_name}}" về đích sau {{t_new}} thay vì {{t_base}}, tức sớm hơn {{t_saved}}.';
   } else if (tool === 'compare_ab') {
     const A = { name: 'A', monthly: num(params.aMonthly, house.monthly + 2000000), upfront: num(params.aUpfront, 0) };
     const B = { name: 'B', monthly: num(params.bMonthly, house.monthly), upfront: num(params.bUpfront, 30000000) };
