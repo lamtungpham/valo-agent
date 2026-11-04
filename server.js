@@ -126,6 +126,7 @@ async function route(req, res, path, user, uid) {
   }
   if (path === '/api/commitments/mark') { await markCommitment(user, body.id, body.status); return state(); }
   if (path === '/api/tools/run') { const result = await runTool(user, body); save(); return json(res, 200, { result, state: await viewState(user, ext()) }); }
+  if (path === '/api/lang') { user.lang = body.lang === 'en' ? 'en' : 'vi'; save(); return state(); }
   if (path === '/api/selfreport/restart') {
     user.selfReport = null;
     user.onboarding = null;
