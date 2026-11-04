@@ -62,6 +62,25 @@ async function compose(user, a, { kind = 'coach', step, intent, question, factId
   return msg;
 }
 
+/** Cất hội thoại hiện tại vào lưu trữ để phiên mới bắt đầu trên khung chat sạch. Cam kết, hồ sơ, mục tiêu giữ nguyên.
+ *  keepLast: giữ lại tin cuối của agent (câu hỏi đang dở) để không mất mạch. */
+export function archiveChat(user, title, { keepLast = false } = {}) {
+  const msgs = user.chat || [];
+  const last = keepLast ? [...msgs].reverse().find((m) => m.role === 'agent') : null;
+  const moved = last ? msgs.filter((m) => m !== last) : msgs;
+  if (!moved.some((m) => m.role === 'user' || m.kind === 'coach' || m.kind === 'alert')) { if (!keepLast) user.chat = []; return false; }
+  user.chatArchive = [{ id: uid('ar'), title, from: moved[0]?.date, to: moved[moved.length - 1]?.date, archivedAt: new Date().toISOString(), messages: moved.slice(-150) }, ...(user.chatArchive || [])].slice(0, 15);
+  user.chat = last ? [last] : [];
+  return true;
+}
+const archiveTitle = (user) => {
+  if (user.onboarding?.active) return 'Khai hồ sơ (chưa dùng Valo)';
+  const T = user.session?.topic ? TOPICS[user.session.topic] : null;
+  if (user.session?.topic === 'emergency') return 'Phiên coaching: xây quỹ dự phòng';
+  if (T) return `Phiên coaching: ${T.name}`;
+  return 'Hội thoại trước';
+};
+
 function userMsg(user, text) {
   user.chat.push({ id: uid('m'), role: 'user', text, date: user.simDate, createdAt: new Date().toISOString() });
 }
@@ -293,6 +312,7 @@ async function askOnboard(user, a, logs, { userAnswer, retry = false, resume = f
 }
 
 async function startOnboarding(user, a, logs) {
+  archiveChat(user, archiveTitle(user));
   user.session = null;
   user.pendingFocus = null;
   user.onboarding = { active: true, idx: 0, answers: {}, startedAt: user.simDate };
@@ -747,6 +767,7 @@ export async function startSession(user) {
     save();
     return;
   }
+  archiveChat(user, archiveTitle(user)); // mở phiên mới trên khung chat sạch
   const c = reviewTarget(user);
   if (c) {
     newSession(user, { commitmentId: c.id, targetMonths: c.targetMonths || 3, prevScore: c.score ?? null, knowhow: c.knowhow || null, stage: c.stage || 'action', review: true }, c.topic || 'emergency');
@@ -1022,6 +1043,7 @@ export async function onDataChange(user, reason) {
     return;
   }
   const dataReason = ['data-change', 'dataset-change', 'valo-import', 'self-report'].includes(reason);
+  if (dataReason && !user.session && reason !== 'data-change') archiveChat(user, reason === 'self-report' ? 'Khai hồ sơ (chưa dùng Valo)' : 'Hội thoại với dữ liệu cũ');
   if (dataReason) await announceNewData(user, a, logs, reason);
   user.lastDigest = digest(a);
   const before = user.chat.length;
@@ -1153,6 +1175,7 @@ export async function viewState(user, extras = {}) {
       sessions: user.sessions,
     },
     chat: user.chat.slice(-80),
+    archive: (user.chatArchive || []).map((x) => ({ id: x.id, title: x.title, from: x.from, to: x.to, count: x.messages.length, messages: x.messages })),
     alerts: user.alerts.slice(0, 30),
     summaries: user.summaries,
     trace: user.trace.slice(0, 25),

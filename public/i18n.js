@@ -287,9 +287,15 @@ const EXACT = {
   "Quỹ khẩn cấp": "Emergency fund",
   "Tổng dư nợ": "Total debt",
   "Thu nhập thực nhận/tháng": "Take-home income/month",
+  'Lịch sử': 'History', 'Xoá khung chat': 'Clear chat', 'Xem các hội thoại cũ đã lưu trữ': 'View archived conversations', 'Cất hội thoại hiện tại vào lịch sử, cam kết và hồ sơ vẫn giữ nguyên': 'Move this conversation to history; commitments and profile are kept',
+  'Quay lại phiên hiện tại': 'Back to the current session', 'Chưa có hội thoại nào được lưu trữ.': 'No archived conversations yet.',
+  'Mỗi lần mở phiên mới, nhập dữ liệu mới hoặc bấm "Xoá khung chat", hội thoại cũ được cất vào đây. Cam kết, mục tiêu và hồ sơ coaching vẫn giữ nguyên.': 'Each time you start a new session, load new data or press "Clear chat", the old conversation is stored here. Commitments, goals and the coaching profile are kept.',
+  'Khung chat trống. Bấm "Bắt đầu / tiếp tục phiên" để tôi tổng kết tình hình và cùng chọn việc cần làm.': 'The chat is empty. Press "Start / resume session" and I’ll summarise your situation so we can pick what to work on.',
+  'Khai hồ sơ (chưa dùng Valo)': 'Profile intake (no Valo)', 'Hội thoại với dữ liệu cũ': 'Conversation with previous data', 'Hội thoại trước': 'Previous conversation', 'Đã xoá khỏi khung chat': 'Cleared from chat', 'Phiên coaching: xây quỹ dự phòng': 'Coaching: build the emergency fund',
   'Kiểm tra sao kê thẻ tín dụng': 'Check the credit card statement', 'Hỏi lại về việc xây quỹ dự phòng (không ép)': 'Check back about building the emergency fund (no pressure)',
 };
 
+const TOPIC_EN = { 'xây quỹ dự phòng': 'build the emergency fund', 'giữ chi tiêu trong ngân sách': 'keep spending within budget', 'đẩy nhanh mục tiêu': 'speed up the goal', 'chuẩn bị tiền cho giai đoạn nghỉ sớm': 'prepare for early retirement', 'xử lý các tháng BHXH bị thiếu': 'fix missing social insurance months' };
 const OPT = { 'để riêng mỗi tuần': 'set aside per week', 'số tháng để đủ': 'months to complete', '% dòng tiền dư': '% of surplus', 'bớt mỗi tuần': 'cut per week', 'bớt mỗi tháng': 'cut per month', 'góp thêm mỗi tuần': 'extra per week', 'xong sau': 'done in', 'để dành mỗi tuần': 'save per week', 'lo được tới lúc nghỉ': 'covered by retirement' };
 // Mẫu có phần thay đổi
 const PATTERNS = [
@@ -333,11 +339,16 @@ const PATTERNS = [
   [/^Phương án (\d+): (.+)$/, (m, n, r) => `Option ${n}: ${OPT[r] || numbers(tr(r))}`],
   [/^(.+) \(trước khi cập nhật\)$/, (m, l) => `${tr(l)} (before update)`],
   [/^Câu (\d+)\/(\d+)$/, (m, a, b) => `Question ${a}/${b}`],
+  [/^Lịch sử \((\d+)\)$/, (m, n) => `History (${n})`],
+  [/^Lịch sử hội thoại \((\d+)\)$/, (m, n) => `Conversation history (${n})`],
+  [/^Phiên coaching: (.+)$/, (m, t) => `Coaching: ${TOPIC_EN[t] || t}`],
+  [/^ · (\d+) tin$/, (m, n) => ` · ${n} messages`],
   [/^(\d+) th · (\d+) tr$/, (m, a, b) => `${a} mo · ${b}M`],
 ];
 
 // Cụm từ thay tại chỗ (dài trước), cho chuỗi ghép như "X · dữ liệu ngày D"
 const PHRASES = [
+  ['Khai hồ sơ (chưa dùng Valo)', 'Profile intake (no Valo)'], ['Hội thoại với dữ liệu cũ', 'Conversation with previous data'], ['Hội thoại trước', 'Previous conversation'], ['Đã xoá khỏi khung chat', 'Cleared from chat'], ['Phiên coaching: xây quỹ dự phòng', 'Coaching: build the emergency fund'], ['Phiên coaching: giữ chi tiêu trong ngân sách', 'Coaching: keep spending within budget'], ['Phiên coaching: đẩy nhanh mục tiêu', 'Coaching: speed up the goal'], ['Phiên coaching: chuẩn bị tiền cho giai đoạn nghỉ sớm', 'Coaching: prepare for early retirement'], ['Phiên coaching: xử lý các tháng BHXH bị thiếu', 'Coaching: fix missing social insurance months'],
   ['DỮ LIỆU HƯ CẤU', 'FICTIONAL DATA'], ['Bộ test 1 (đóng liên tục)', 'Test set 1 (continuous)'], ['Bộ test 2 (thiếu 03-05/2022)', 'Test set 2 (missing 03-05/2022)'],
   ['Hồ sơ bạn tự khai qua trò chuyện', 'Profile you told me in chat'], ['Dữ liệu Valo (dán lúc', 'Valo data (pasted at'], ['Dữ liệu dán từ app Valo', 'Data pasted from the Valo app'], ['Mock (dữ liệu hư cấu)', 'Mock (fictional data)'],
   ['dữ liệu ngày', 'data as of'], ['(ngày', '(as of'], ['Adapter:', 'Adapter:'],
@@ -362,6 +373,7 @@ function numbers(s) {
     .replace(/(\d+(?:\.\d)?) năm\b/g, (m, n) => `${n} ${n === '1' ? 'year' : 'years'}`)
     .replace(/(\d+) tuổi\b/g, 'age $1')
     .replace(/(\d+) lần\b/g, '$1 times')
+    .replace(/(\d+) tin$/g, '$1 messages')
     .replace(/\/tuần\b/g, '/week')
     .replace(/\/tháng\b/g, '/month');
 }
