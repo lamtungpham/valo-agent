@@ -4,7 +4,7 @@
 // - Fact được thay bằng giá trị engine, kèm nguồn, ngày dữ liệu, công thức.
 
 const PH = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
-const NUMBER_WORDS = /(^|[\s,.;:(])(mười|mươi|trăm|nghìn|ngàn|triệu|tỷ|tỉ|phần trăm)(?=$|[\s,.;:)!?])/i;
+const NUMBER_WORDS = /(^|[\s,.;:(])(mười|mươi|trăm|nghìn|ngàn|triệu|tỷ|tỉ|phần trăm|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand|million|billion|percent)(?=$|[\s,.;:)!?])/i;
 
 export function checkDraft(raw, factMap) {
   const issues = [];

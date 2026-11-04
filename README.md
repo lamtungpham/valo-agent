@@ -143,6 +143,13 @@ Chọn "Valo API thật" ở tab Dữ liệu. Nếu chưa cấu hình hoặc API
 
 Tab "Chưa dùng Valo": 13 câu khai vấn, mỗi tin một câu, bắt đầu từ điều khiến người dùng chưa yên tâm nhất rồi mới tới thu nhập, chi tiêu, nợ, quỹ dự phòng, mục tiêu, khẩu vị rủi ro. Kết thúc bằng bản đồ tài chính trực quan (dòng tiền, tài sản và nợ, quỹ khẩn cấp, mục tiêu so với khả năng), hồ sơ tạm, và lời mời nối Valo.
 
+## Giao diện tiếng Anh
+
+Nút **English / Tiếng Việt** trên thanh đầu trang đổi ngôn ngữ (mặc định tiếng Việt, nhớ theo trình duyệt). Ở tiếng Anh:
+
+- Chữ giao diện được dịch bởi `public/i18n.js` (từ điển + mẫu), số tiền viết `5,500,000 ₫`, số tháng `1.6 months`.
+- Agent Coach (Muse Spark) viết lời coach bằng tiếng Anh; Agent Kiểm chứng chặn cả số viết bằng chữ tiếng Anh. Khi không gọi được AI, lời dẫn mẫu vẫn là tiếng Việt.
+
 ## Deploy lên Vercel
 
 Repo đã có sẵn `vercel.json` và `api/index.js`: trang tĩnh lấy từ `public/`, mọi đường `/api/*` chạy chung handler với `npm start` (tối đa 60 giây mỗi lượt vì Muse Spark suy luận khá lâu).

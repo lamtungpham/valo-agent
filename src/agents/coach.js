@@ -23,7 +23,13 @@ QUY TẮC SỐ LIỆU TUYỆT ĐỐI:
 
 ĐỊNH DẠNG: tối đa ba câu ngắn, không dùng markdown, không gạch đầu dòng. Nếu được yêu cầu đặt câu hỏi thì kết thúc bằng đúng một câu hỏi, giữ ý của CÂU HỎI CẦN ĐẶT.`;
 
-export async function draft({ intent, question, factIds = [], factMap, userAnswer, extra, template }) {
+const ENGLISH = `
+
+NGÔN NGỮ: Người dùng đang dùng giao diện tiếng Anh. Viết toàn bộ câu trả lời bằng tiếng Anh tự nhiên, thân thiện (xưng "I", gọi "you").
+BƯỚC, CÂU HỎI CẦN ĐẶT và LỜI DẪN MẪU được ghi bằng tiếng Việt: hiểu ý rồi diễn đạt bằng tiếng Anh, không giữ chữ Việt.
+Quy tắc số liệu vẫn tuyệt đối: không chữ số, không số viết bằng chữ tiếng Anh (one, two, ten, hundred, thousand, million, billion, percent...). Placeholder {{ma_fact}} giữ nguyên, không dịch.`;
+
+export async function draft({ intent, question, factIds = [], factMap, userAnswer, extra, template, lang = 'vi' }) {
   const factLines = factIds
     .filter((id) => factMap[id])
     .map((id) => `- {{${id}}}: ${factMap[id].label} (giá trị engine: ${factMap[id].display})`)
@@ -34,10 +40,11 @@ export async function draft({ intent, question, factIds = [], factMap, userAnswe
     userAnswer ? `NGƯỜI DÙNG VỪA NÓI: "${String(userAnswer).slice(0, 500)}"` : '',
     extra ? `BỐI CẢNH: ${extra}` : '',
     `FACTS (chỉ được dùng các placeholder này):\n${factLines || '(không có)'}`,
+    lang === 'en' && template ? `LỜI DẪN MẪU (tiếng Việt, chỉ để tham khảo ý; viết lại bằng tiếng Anh): ${template}` : '',
   ].filter(Boolean).join('\n\n');
 
   if (!museEnabled()) return { raw: template, mode: 'template', error: 'META_API_KEY chưa đặt: dùng lời dẫn mẫu' };
-  const r = await museChat([{ role: 'system', content: SYSTEM }, { role: 'user', content: user }]);
+  const r = await museChat([{ role: 'system', content: lang === 'en' ? SYSTEM + ENGLISH : SYSTEM }, { role: 'user', content: user }]);
   if (!r.text) return { raw: template, mode: 'template', error: `Muse Spark lỗi: ${r.error}` };
   return { raw: r.text, mode: 'ai', template };
 }

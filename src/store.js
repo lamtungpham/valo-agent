@@ -31,6 +31,7 @@ function freshUser(id) {
     onboarding: null, // đang khai hồ sơ trong khung chat (người chưa dùng Valo)
     selfReport: null, // hồ sơ tự khai đã xong {answers, at}: nguồn dữ liệu khi chọn bộ "self-report"
     trace: [], // nhật ký multi-agent gần nhất
+    lang: 'vi', // ngôn ngữ giao diện và lời coach: vi | en
   };
 }
 

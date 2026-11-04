@@ -1,8 +1,10 @@
 // Giao diện Valo Agent. Không tính toán tài chính ở đây: mọi số đến từ engine phía server.
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const vnd = (n) => `${new Intl.NumberFormat('vi-VN').format(Math.round(n))} đ`;
-const nf1 = (n) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(n);
+import { tr, factDisplay, getLang, initI18n, setLang } from './i18n.js';
+const EN = getLang() === 'en';
+const vnd = (n) => (EN ? `${new Intl.NumberFormat('en-US').format(Math.round(n))} ₫` : `${new Intl.NumberFormat('vi-VN').format(Math.round(n))} đ`);
+const nf1 = (n) => new Intl.NumberFormat(EN ? 'en-US' : 'vi-VN', { maximumFractionDigits: 1 }).format(n);
 
 let S = null;
 let busy = false;
@@ -130,19 +132,19 @@ const FACT_STORE = new Map();
 function factSpan(f) {
   if (!f) return '<span class="fact">—</span>';
   FACT_STORE.set(f.id, f);
-  return `<span class="fact" data-fid="${esc(f.id)}" tabindex="0">${esc(f.display)}</span>`;
+  return `<span class="fact" data-fid="${esc(f.id)}" tabindex="0">${esc(factDisplay(f))}</span>`;
 }
 function factTable(facts) {
   if (!facts?.length) return '';
   facts.forEach((f) => FACT_STORE.set(f.id, f));
   return `<details class="facts"><summary>Số tính được bởi engine (${facts.length}): nguồn, ngày dữ liệu, công thức</summary>
-  <table>${facts.map((f) => `<tr><td>${esc(f.label)}</td><td>${esc(f.display)}</td><td>${esc(f.formula)}<br><i>${esc(f.source)} · dữ liệu ngày ${esc(f.asOf)}</i></td></tr>`).join('')}</table></details>`;
+  <table>${facts.map((f) => `<tr><td>${esc(f.label)}</td><td>${esc(factDisplay(f))}</td><td>${esc(f.formula)}<br><i>${esc(f.source)} · dữ liệu ngày ${esc(f.asOf)}</i></td></tr>`).join('')}</table></details>`;
 }
 function showPop(el) {
   const f = FACT_STORE.get(el.dataset.fid);
   if (!f) return;
   const p = $('#pop');
-  p.innerHTML = `<b>${esc(f.label)}</b>: ${esc(f.display)}
+  p.innerHTML = `<b>${esc(f.label)}</b>: ${esc(factDisplay(f))}
     <div class="k">Công thức</div>${esc(f.formula || '—')}
     <div class="k">Nguồn</div>${esc(f.source || '—')}
     <div class="k">Ngày dữ liệu</div>${esc(f.asOf || '—')}
@@ -481,8 +483,16 @@ function render() {
 
 window.ValoApp = { act, api, get state() { return S; }, esc, factSpan, factTable, renderSegments, aiBadge, verifyBadge };
 
+initI18n();
+$('#langBtn').textContent = EN ? 'Tiếng Việt' : 'English';
+$('#langBtn').addEventListener('click', async () => { try { await api('/lang', { lang: EN ? 'vi' : 'en' }); } catch {} setLang(EN ? 'vi' : 'en'); });
+
 (async () => {
   setBusy(true);
-  try { S = await api('/state'); render(); } catch (e) { $('#chat').innerHTML = `<p>Lỗi tải: ${esc(e.message)}</p>`; }
+  try {
+    S = await api('/state');
+    if ((S.user.lang || 'vi') !== getLang()) S = await api('/lang', { lang: getLang() }); // lời coach theo đúng ngôn ngữ giao diện
+    render();
+  } catch (e) { $('#chat').innerHTML = `<p>Lỗi tải: ${esc(e.message)}</p>`; }
   setBusy(false);
 })();

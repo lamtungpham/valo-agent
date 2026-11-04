@@ -47,7 +47,7 @@ async function compose(user, a, { kind = 'coach', step, intent, question, factId
   const factMap = { ...a.factMap };
   for (const f of extraFacts) factMap[f.id] = f;
   emit('Coach', museEnabled() ? 'Muse Spark đang viết' : 'đang soạn lời dẫn mẫu');
-  const d = await draft({ intent, question, factIds, factMap, userAnswer, extra, template });
+  const d = await draft({ intent, question, factIds, factMap, userAnswer, extra, template, lang: user.lang });
   emit('Kiểm chứng', 'đang soát từng con số');
   const v = verify(d, factMap, { question, factIds });
   logs.push({ agent: 'Coach', action: step || kind, mode: d.mode, note: d.error || 'Muse Spark' });
@@ -1123,7 +1123,7 @@ export async function viewState(user, extras = {}) {
   const timeline = [];
   for (let age = 31; age <= 85; age++) timeline.push(stateAtAge(p, age, a.snap.profile.retireMonthlySpend));
   return {
-    user: { id: user.id, dataset: user.dataset, hasValoImport: Boolean(user.valoImport?.ctx), hasSelfReport: Boolean(user.selfReport), simDate: user.simDate, simDateText: fmtDate(user.simDate) },
+    user: { id: user.id, dataset: user.dataset, hasValoImport: Boolean(user.valoImport?.ctx), hasSelfReport: Boolean(user.selfReport), lang: user.lang || 'vi', simDate: user.simDate, simDateText: fmtDate(user.simDate) },
     onboarding: user.onboarding?.active ? { idx: user.onboarding.idx, total: OB_QUESTIONS.length } : null,
     data: { meta: a.snap.meta, asOf: fmtDate(a.snap.asOf), profile: a.snap.profile, edited: a.snap.edited, accounts: a.snap.accounts, goals: a.fin.goals, monthlyExpense: a.monthlyExpense, surplus: a.surplus },
     facts: a.factMap,
