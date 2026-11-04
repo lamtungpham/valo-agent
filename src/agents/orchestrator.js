@@ -776,12 +776,55 @@ export async function onDataChange(user, reason) {
       template: 'Nhắc hẹn: {{rm_text}}.',
     }, logs);
   }
+  if (['data-change', 'dataset-change', 'valo-import'].includes(reason)) await announceNewData(user, a, logs, reason);
+  user.lastDigest = digest(a);
   const before = user.chat.length;
   await evaluateEvents(user, a, logs, { reason });
   await maybeSummary(user, a, logs);
   await resumeAfterDataChange(user, a, logs, before);
   pushTrace(user, logs);
   save();
+}
+
+const DIGEST_NAME = { ef_balance: 'số dư quỹ dự phòng', ef_months: 'quỹ dự phòng đủ dùng', monthly_income: 'thu nhập ròng tháng', monthly_expense: 'chi tiêu trung bình tháng', spend_last: 'chi tiêu tháng gần nhất', net_worth: 'tài sản ròng', bhxh_hist_months: 'thời gian đã đóng BHXH', bhxh_gap_count: 'số tháng BHXH ngắt quãng', bhxh_pension: 'lương hưu dự kiến' };
+const DIGEST_IDS = ['ef_balance', 'ef_months', 'monthly_income', 'monthly_expense', 'spend_last', 'net_worth', 'bhxh_hist_months', 'bhxh_gap_count', 'bhxh_pension'];
+function digest(a) {
+  const out = { source: a.snap.meta.label, values: {} };
+  for (const id of DIGEST_IDS) if (a.factMap[id]) out.values[id] = { value: a.factMap[id].value, unit: a.factMap[id].unit, label: a.factMap[id].label };
+  return out;
+}
+
+/** Dữ liệu mới vào: Agent chính chủ động báo đã nhận gì và con số nào đổi (cũ → mới), trước khi xét cảnh báo. */
+async function announceNewData(user, a, logs, reason) {
+  const prev = user.lastDigest;
+  const asOf = fmtDate(a.snap.asOf);
+  const extraFacts = [fact('d_source', { label: 'Nguồn dữ liệu', value: a.snap.meta.label, unit: 'text', formula: 'Adapter đang dùng', source: a.snap.meta.label, asOf })];
+  const rec = { accounts: a.snap.accounts.length, spending: a.snap.monthlySpending.length, bhxh: a.snap.socialInsurance.periods.length, goals: a.snap.goals.length };
+  const recLabel = { accounts: 'Số tài khoản', spending: 'Số tháng chi tiêu', bhxh: 'Số giai đoạn đóng BHXH', goals: 'Số mục tiêu' };
+  for (const [k, v] of Object.entries(rec)) extraFacts.push(fact(`d_rec_${k}`, { label: recLabel[k], value: v, unit: 'count', formula: 'Đếm bản ghi Agent Thu thập đọc được', source: a.snap.meta.label, asOf }));
+  const changes = [];
+  for (const id of DIGEST_IDS) {
+    const now = a.factMap[id];
+    const old = prev?.values?.[id];
+    if (!now || !old || old.value === now.value) continue;
+    if (now.unit === 'months' && Math.abs(old.value - now.value) < 0.05) continue;
+    extraFacts.push(fact(`d_old_${id}`, { label: `${now.label} (trước khi cập nhật)`, value: old.value, unit: old.unit, formula: 'Giá trị ở lần tính trước', source: prev.source, asOf }));
+    changes.push(`${DIGEST_NAME[id]} từ {{d_old_${id}}} thành {{${id}}}`);
+  }
+  const factIds = changes.flatMap((c) => [...c.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1])).filter((id) => a.factMap[id]);
+  const sourceChanged = prev && prev.source !== a.snap.meta.label;
+  const head = reason === 'valo-import' ? 'Mình vừa nhận dữ liệu mới anh nhập từ Valo' : sourceChanged ? 'Mình vừa chuyển sang nguồn dữ liệu mới' : 'Mình vừa nhận dữ liệu anh cập nhật';
+  const read = 'Agent Thu thập đọc được {{d_rec_accounts}} tài khoản, {{d_rec_spending}} tháng chi tiêu, {{d_rec_bhxh}} giai đoạn đóng BHXH và {{d_rec_goals}} mục tiêu.';
+  const body = changes.length
+    ? ` Con số thay đổi: ${changes.slice(0, 6).join('; ')}.`
+    : prev ? ' Các con số chính không đổi so với lần tính trước.' : '';
+  await compose(user, a, {
+    kind: 'alert', step: 'data_received',
+    intent: 'Chủ động báo người dùng đã nhận dữ liệu mới: nguồn nào, đọc được gì, con số chính nào thay đổi từ bao nhiêu thành bao nhiêu; ngắn gọn, không khuyên',
+    factIds, extraFacts,
+    template: `${head} ({{d_source}}). ${read}${body} Mọi số liệu đã được tính lại theo dữ liệu này.`,
+  }, logs);
+  logs.push({ agent: 'Agent chính', action: 'data-received', reason, changes: changes.length });
 }
 
 /** Đang coach dở mà dữ liệu đổi: báo rõ số đã tính lại, rồi hỏi lại đúng câu đang dở để phiên không bị đứt. */
