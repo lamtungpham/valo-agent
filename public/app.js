@@ -224,7 +224,7 @@ function renderCommit() {
     <h4>Lịch sử chưa giữ cam kết</h4>
     <div class="card"><ul class="clean">${c.violations.map((v) => `<li class="row"><div>${esc(v.text)}<div class="note">Ngày ${fmt(v.date)} · Lý do: ${esc(v.reason || 'chưa nêu')}</div></div></li>`).join('') || '<li class="note">Chưa có.</li>'}</ul></div>
     <h4>Mục tiêu</h4>
-    <div class="card"><ul class="clean">${S.data.goals.map((g) => `<li class="row"><span>${esc(g.name)} (từ dữ liệu)</span><span>${factSpan(F(`goal_${g.id}_progress`))}</span></li>`).join('')}${c.goals.map((g) => `<li class="row"><span>${esc(g.name)}</span><span class="note">tạo ${fmt(g.createdAt)}</span></li>`).join('')}</ul></div>
+    <div class="card"><ul class="clean">${S.data.goals.map((g) => `<li class="row"><span>${esc(g.name)} (từ dữ liệu)</span><span>${factSpan(F(`gl_${String(g.id).replace(/\W/g, '_')}_progress`))}</span></li>`).join('')}${c.goals.map((g) => `<li class="row"><span>${esc(g.name)}</span><span class="note">tạo ${fmt(g.createdAt)}</span></li>`).join('')}</ul></div>
     <h4>Nhắc hẹn</h4>
     <div class="card"><ul class="clean">${c.reminders.map((r) => `<li class="row"><span>${esc(r.text)}</span><span class="note">${fmt(r.date)} ${r.fired ? '· đã nhắc' : ''}</span></li>`).join('') || '<li class="note">Chưa có.</li>'}</ul></div>
     <h4>Các phiên đã xong</h4>
