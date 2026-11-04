@@ -72,7 +72,12 @@ document.addEventListener('focusout', () => { $('#pop').hidden = true; });
 
 // ---------- Tin nhắn ----------
 const KIND = { coach: 'Coach', alert: 'Agent chủ động lên tiếng', summary: 'Tóm tắt định kỳ' };
-const STEP = { G: 'GROW · Goal', R: 'GROW · Reality', O: 'GROW · Options', W: 'GROW · Will', DONE: 'Đã ghi cam kết', A1: 'Trách nhiệm giải trình', A2: 'Trách nhiệm giải trình', 'A1-done': 'Cam kết hoàn thành' };
+const STEP = {
+  ST: 'Mức sẵn sàng · Stages of Change', MI1: 'MI · khơi khoảng cách', MI2: 'MI · phản chiếu lưỡng lự', MI3: 'MI · thước đo tầm quan trọng', MI4: 'MI · xin phép bước nhỏ', 'MI-END': 'MI · không ép, hẹn hỏi lại',
+  G: 'GROW Goal · OSKAR Outcome', S: 'GROW Reality · OSKAR Scaling', K: 'OSKAR Know-how', O: 'GROW Options',
+  WO1: 'WOOP Wish + Outcome', WO2: 'WOOP Obstacle', WP: 'WOOP Plan nếu-thì', WC: 'Thước đo tự tin', W: 'GROW Will · OSKAR Affirm + Action',
+  DONE: 'Đã ghi cam kết', RV1: 'OSKAR Review · trách nhiệm giải trình', RVD: 'OSKAR Review · đã làm', RVM: 'OSKAR Review · WOOP chống tái phát', OK: 'Coach',
+};
 
 function renderSegments(m) {
   const map = Object.fromEntries((m.facts || []).map((f) => [f.id, f]));
@@ -105,7 +110,7 @@ function renderChat() {
   box.scrollTop = box.scrollHeight;
   const last = [...S.chat].reverse().find((m) => m.role === 'agent');
   const chips = last && last === S.chat[S.chat.length - 1] ? last.chips || [] : [];
-  $('#chips').innerHTML = chips.map((c) => `<button class="chip" data-v="${esc(c.value)}" data-l="${esc(c.label)}">${esc(c.label)}</button>`).join('');
+  $('#chips').innerHTML = chips.map((c) => `<button class="chip${/^\d+$/.test(c.label) ? ' score' : ''}" data-v="${esc(c.value)}" data-l="${esc(c.label)}">${esc(c.label)}</button>`).join('');
   const s = S.coaching.session;
   $('#stepBadge').innerHTML = s ? `đang ở bước <b>${esc(STEP[s.step] || s.step)}</b> (phiên được lưu, mở lại vẫn tiếp tục)` : 'không có phiên đang dở';
 }
@@ -206,8 +211,11 @@ function renderCommit() {
   const st = { open: 'Đang mở', done: 'Đã làm', missed: 'Chưa giữ' };
   $('#tab-commit').innerHTML = `
     <h3>Hồ sơ coaching (lưu bền vững)</h3>
+    <div class="card note">Khung: GROW mặc định · OSKAR cho mục tiêu và Review đầu phiên sau · WOOP cho hành vi tuần này · MI theo Stages of Change khi còn lưỡng lự.${c.readiness ? ` Giai đoạn gần nhất: <b>${esc(c.readiness.stage)}</b>.` : ''}</div>
     <h4>Cam kết</h4>
-    <div class="card"><ul class="clean">${c.commitments.map((x) => `<li class="row"><div><div>${esc(x.text)}</div><div class="note">Ghi ngày ${fmt(x.createdAt)} · hạn ${fmt(x.dueDate)} · ${esc(x.goal)}</div></div>
+    <div class="card"><ul class="clean">${c.commitments.map((x) => `<li class="row"><div><div>${esc(x.text)}</div><div class="note">Ghi ngày ${fmt(x.createdAt)} · hạn ${fmt(x.dueDate)} · ${esc(x.goal)}</div>
+      ${x.obstacle ? `<div class="note">Trở ngại (WOOP): ${esc(x.obstacle)}</div>` : ''}${x.ifThen ? `<div class="note">Kế hoạch: <b>${esc(x.ifThen)}</b></div>` : ''}
+      ${x.score != null || x.confidence != null ? `<div class="note">Tự chấm tiến độ ${x.score ?? '—'}/10 · tự tin ${x.confidence ?? '—'}/10</div>` : ''}${x.reviewNote ? `<div class="note">Review: ${esc(x.reviewNote)}</div>` : ''}</div>
       <div>${x.status === 'open' ? `<button class="btn small" data-mark="${x.id}" data-s="done">Đã làm</button>` : ''} <span class="status ${x.status}">${st[x.status]}</span></div></li>`).join('') || '<li class="note">Chưa có cam kết. Hoàn thành một phiên GROW để tạo.</li>'}</ul></div>
     <h4>Lịch sử chưa giữ cam kết</h4>
     <div class="card"><ul class="clean">${c.violations.map((v) => `<li class="row"><div>${esc(v.text)}<div class="note">Ngày ${fmt(v.date)} · Lý do: ${esc(v.reason || 'chưa nêu')}</div></div></li>`).join('') || '<li class="note">Chưa có.</li>'}</ul></div>
@@ -216,7 +224,7 @@ function renderCommit() {
     <h4>Nhắc hẹn</h4>
     <div class="card"><ul class="clean">${c.reminders.map((r) => `<li class="row"><span>${esc(r.text)}</span><span class="note">${fmt(r.date)} ${r.fired ? '· đã nhắc' : ''}</span></li>`).join('') || '<li class="note">Chưa có.</li>'}</ul></div>
     <h4>Các phiên đã xong</h4>
-    <div class="card"><ul class="clean">${c.sessions.map((s) => `<li class="row"><span>Quỹ dự phòng ${s.targetMonths} tháng · vướng: ${esc(s.reality || '')}</span><span class="note">${fmt(s.endedAt)}</span></li>`).join('') || '<li class="note">Chưa có.</li>'}</ul></div>`;
+    <div class="card"><ul class="clean">${c.sessions.map((s) => `<li class="row"><span>${s.topic === 'mi' ? `MI · chưa đặt mục tiêu · quan trọng ${s.importance ?? '—'}/10` : `Quỹ dự phòng ${s.targetMonths} tháng · tự chấm ${s.score ?? '—'}/10 · trở ngại: ${esc(s.reality || '')}`}</span><span class="note">${fmt(s.endedAt)}</span></li>`).join('') || '<li class="note">Chưa có.</li>'}</ul></div>`;
   document.querySelectorAll('[data-mark]').forEach((b) => b.addEventListener('click', () => act('/commitments/mark', { id: b.dataset.mark, status: b.dataset.s })));
 }
 

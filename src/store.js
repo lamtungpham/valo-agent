@@ -26,6 +26,7 @@ function freshUser(id) {
     summaries: [], // tóm tắt định kỳ
     lastSummaryDate: null,
     valoImport: null, // dữ liệu dán từ app Valo (chỉ lưu trên máy chạy app, đã gitignore)
+    readiness: null, // giai đoạn sẵn sàng gần nhất (Stages of Change)
     onboarding: null, // nhánh chưa dùng Valo
     trace: [], // nhật ký multi-agent gần nhất
   };
