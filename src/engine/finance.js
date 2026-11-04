@@ -97,15 +97,19 @@ export function financeFacts(d, { source, asOf }) {
   for (const c of alloc.classes) {
     facts.push(fact(`alloc_${c.assetClass}`, { label: `Tỷ trọng ${c.assetClass}`, value: c.pct, unit: 'percent', formula: 'Giá trị nhóm ÷ tổng tài sản × 100', source: 'Engine tài chính', asOf }));
   }
-  // bí danh "goal_main_*" cho mục tiêu chính (mục tiêu đầu tiên), dùng chung cho mọi nguồn dữ liệu
-  const main = goals[0];
+  // bí danh "goal_main_*": mục tiêu đang theo đuổi (mục tiêu đầu tiên chưa đủ tiền, nếu đã đủ hết thì mục tiêu đầu)
+  const main = goals.find((g) => g.progressPct < 100) || goals[0];
   if (main) {
+    facts.push(fact('goal_main_name', { label: 'Mục tiêu đang theo đuổi', value: main.name, unit: 'text', formula: 'Mục tiêu đầu tiên chưa đủ tiền', source, asOf }));
+    facts.push(fact('goal_main_remaining', { label: `Còn thiếu "${main.name}"`, value: main.remaining, unit: 'vnd', formula: 'Số tiền mục tiêu − đã có', source: 'Engine tài chính', asOf }));
+    facts.push(fact('goal_main_monthly', { label: `Góp mỗi tháng "${main.name}"`, value: main.monthly || 0, unit: 'vnd', formula: 'Khoản góp định kỳ khai trong dữ liệu', source, asOf }));
     facts.push(fact('goal_main_progress', { label: `Tiến độ "${main.name}"`, value: main.progressPct, unit: 'percent', formula: 'Đã có ÷ mục tiêu × 100', source: 'Engine tài chính', asOf }));
-    facts.push(fact('goal_main_months', { label: `Số tháng còn lại "${main.name}"`, value: Number.isFinite(main.months) ? main.months : null, unit: 'months', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
+    facts.push(fact('goal_main_months', { label: `Số tháng còn lại "${main.name}"`, value: Number.isFinite(main.months) ? main.months : null, unit: 'months', display: Number.isFinite(main.months) ? undefined : 'chưa ước được (chưa có khoản góp định kỳ)', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
   }
   for (const g of goals) {
     facts.push(fact(`goal_${g.id}_progress`, { label: `Tiến độ "${g.name}"`, value: g.progressPct, unit: 'percent', formula: 'Đã có ÷ mục tiêu × 100', source: 'Engine tài chính', asOf }));
-    facts.push(fact(`goal_${g.id}_months`, { label: `Số tháng còn lại "${g.name}"`, value: Number.isFinite(g.months) ? g.months : null, unit: 'months', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
+    facts.push(fact(`goal_${g.id}_remaining`, { label: `Còn thiếu "${g.name}"`, value: g.remaining, unit: 'vnd', formula: 'Số tiền mục tiêu − đã có', source: 'Engine tài chính', asOf }));
+    facts.push(fact(`goal_${g.id}_months`, { label: `Số tháng còn lại "${g.name}"`, value: Number.isFinite(g.months) ? g.months : null, unit: 'months', display: Number.isFinite(g.months) ? undefined : 'chưa ước được (chưa có khoản góp định kỳ)', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
   }
   return { facts, ef, alloc, spend, goals };
 }

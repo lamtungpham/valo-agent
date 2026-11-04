@@ -466,8 +466,10 @@ async function okMessage(user, a, logs) {
     extraFacts.push(fact('next_goal', { label: 'Mục tiêu kế tiếp', value: next.name, unit: 'text', formula: 'Mục tiêu đầu tiên chưa đạt đủ tiền', source: a.snap.meta.label, asOf }));
     o = {
       intent: 'Quỹ dự phòng đã đủ: ghi nhận, rồi chuyển sang mục tiêu kế tiếp chưa xong, gợi ý một công cụ cụ thể',
-      factIds: ['ef_months', 'ef_target', 'next_goal', `goal_${next.id}_progress`, `goal_${next.id}_months`],
-      template: `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{goal_${next.id}_progress}}, còn khoảng {{goal_${next.id}_months}} nếu giữ mức góp hiện tại. Anh muốn thử xem góp thêm mỗi tháng thì về đích sớm bao nhiêu không?`,
+      factIds: ['ef_months', 'ef_target', 'next_goal', `goal_${next.id}_progress`, `goal_${next.id}_remaining`, ...(Number.isFinite(next.months) ? [`goal_${next.id}_months`] : [])],
+      template: Number.isFinite(next.months)
+        ? `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{goal_${next.id}_progress}}, còn thiếu {{goal_${next.id}_remaining}}, giữ mức góp hiện tại thì mất khoảng {{goal_${next.id}_months}} nữa. Anh muốn thử xem góp thêm mỗi tháng thì về đích sớm bao nhiêu không?`
+        : `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{goal_${next.id}_progress}}, còn thiếu {{goal_${next.id}_remaining}}. Hiện dữ liệu chưa có khoản góp định kỳ cho mục tiêu này nên chưa ước được bao lâu thì xong. Anh muốn thử xem mỗi tháng góp một khoản thì mất bao lâu không?`,
       chips: [{ label: 'Mô phỏng góp thêm cho mục tiêu này', value: 'tool:what_if' }, { label: 'Mô phỏng sốc mất việc', value: 'tool:shock_job_loss' }, { label: 'Tạo mục tiêu mới', value: 'ui:tools' }],
     };
   } else if (a.factMap.retire_gap?.value > 0) {
@@ -488,7 +490,7 @@ async function okMessage(user, a, logs) {
   await compose(user, a, { step: 'OK', extraFacts, ...o }, logs);
 }
 
-const CORE_FACTS = ['ef_balance', 'ef_months', 'ef_threshold', 'monthly_expense', 'monthly_income', 'monthly_surplus', 'net_worth', 'goal_main_progress', 'goal_main_months', 'bhxh_hist_months', 'bhxh_gap_count', 'bhxh_pension', 'age_legal', 'age_planned', 'retire_gap'];
+const CORE_FACTS = ['ef_balance', 'ef_months', 'ef_threshold', 'monthly_expense', 'monthly_income', 'monthly_surplus', 'net_worth', 'goal_main_name', 'goal_main_progress', 'goal_main_remaining', 'goal_main_monthly', 'goal_main_months', 'bhxh_hist_months', 'bhxh_gap_count', 'bhxh_pension', 'age_legal', 'age_planned', 'retire_gap'];
 
 const isQuestion = (t) => /\?\s*$|là sao|nghĩa là gì|là gì|tại sao|vì sao|sao vậy|chưa hiểu|không hiểu|giải thích|khó hiểu|ý là/i.test(t);
 
@@ -517,7 +519,7 @@ async function answerFreeform(user, a, logs, text) {
     extra: plain ? `Tin nhắn trước của coach: "${plain.slice(0, 600)}"` : undefined,
     question: 'Anh muốn mình đi tiếp vào việc nào?',
     factIds,
-    template: 'Mình nói rõ hơn nhé. Các con số có nền màu là do engine tính từ dữ liệu của anh, rê chuột vào để xem công thức. Tình hình hiện tại: quỹ dự phòng đủ {{ef_months}} chi tiêu, mỗi tháng anh dư {{monthly_surplus}} sau chi tiêu, mục tiêu chính đạt {{goal_main_progress}}. Anh muốn mình đi tiếp vào việc nào?',
+    template: 'Mình nói rõ hơn nhé. Các con số có nền màu là do engine tính từ dữ liệu của anh, rê chuột vào để xem công thức. Tình hình hiện tại: quỹ dự phòng đủ {{ef_months}} chi tiêu, mỗi tháng anh dư {{monthly_surplus}} sau chi tiêu. Mục tiêu đang theo đuổi là "{{goal_main_name}}": đạt {{goal_main_progress}}, còn thiếu {{goal_main_remaining}}. Anh muốn mình đi tiếp vào việc nào?',
     chips: [
       ...(efLow ? [{ label: 'Lên kế hoạch quỹ dự phòng', value: 'start' }] : [{ label: 'Xem việc nên làm tiếp', value: 'start' }]),
       { label: 'Mô phỏng góp thêm cho mục tiêu', value: 'tool:what_if' },

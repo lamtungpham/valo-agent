@@ -41,7 +41,7 @@ function describeEmpty(json) {
  * Gọi chat completions. Trả về chuỗi nội dung, hoặc null nếu chưa cấu hình key / lỗi mạng
  * (khi đó Agent Coach dùng lời dẫn mẫu và giao diện ghi rõ "chưa có AI").
  */
-export async function museChat(messages, { temperature = 0.4, maxTokens = Number(process.env.META_MAX_TOKENS) || 2000, timeoutMs = 30000 } = {}) {
+export async function museChat(messages, { temperature = 0.4, maxTokens = Number(process.env.META_MAX_TOKENS) || 8000, timeoutMs = 60000, retried = false } = {}) {
   if (!museEnabled()) return { text: null, error: 'META_API_KEY chưa được đặt' };
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -61,7 +61,13 @@ export async function museChat(messages, { temperature = 0.4, maxTokens = Number
     }
     const json = await res.json();
     const text = extractText(json);
-    return text ? { text, error: null } : { text: null, error: describeEmpty(json) };
+    if (text) return { text, error: null };
+    // Muse Spark suy luận ngầm trước khi viết: nếu hết token khi chưa kịp viết thì gọi lại một lần với ngân sách gấp đôi
+    if (!retried && json?.choices?.[0]?.finish_reason === 'length') {
+      clearTimeout(t);
+      return museChat(messages, { temperature, maxTokens: maxTokens * 2, timeoutMs, retried: true });
+    }
+    return { text: null, error: describeEmpty(json) };
   } catch (e) {
     return { text: null, error: e.name === 'AbortError' ? 'Hết thời gian chờ' : e.message };
   } finally {
