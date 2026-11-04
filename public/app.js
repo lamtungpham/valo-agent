@@ -198,8 +198,10 @@ function renderChat() {
   const last = [...S.chat].reverse().find((m) => m.role === 'agent');
   const chips = last && last === S.chat[S.chat.length - 1] ? last.chips || [] : [];
   $('#chips').innerHTML = chips.map((c) => `<button class="chip${/^\d+$/.test(c.label) ? ' score' : ''}" data-v="${esc(c.value)}" data-l="${esc(c.label)}">${esc(c.label)}</button>`).join('');
+  $('#msg').placeholder = (last && last === S.chat[S.chat.length - 1] && last.hint) || 'Trả lời coach bằng lời của bạn…';
   const s = S.coaching.session;
-  $('#stepBadge').innerHTML = s ? `đang ở bước <b>${esc(STEP[s.step] || s.step)}</b> (phiên được lưu, mở lại vẫn tiếp tục)` : 'không có phiên đang dở';
+  const ob = S.onboarding;
+  $('#stepBadge').innerHTML = ob ? `đang khai hồ sơ (chưa dùng Valo) · câu <b>${ob.idx + 1}/${ob.total}</b>` : s ? `đang ở bước <b>${esc(STEP[s.step] || s.step)}</b> (phiên được lưu, mở lại vẫn tiếp tục)` : 'không có phiên đang dở';
 }
 const fmt = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 
@@ -207,6 +209,7 @@ $('#chips').addEventListener('click', (e) => {
   const b = e.target.closest('.chip');
   if (!b) return;
   const v = b.dataset.v || '';
+  if (v.startsWith('ds:')) { act('/dataset', { dataset: v.slice(3) }); return; }
   if (v.startsWith('ui:')) { document.querySelector(`[data-tab=${v.slice(3)}]`)?.click(); return; }
   if (v.startsWith('tool:')) { document.querySelector('[data-tab=tools]')?.click(); document.querySelector(`[data-tool=${v.slice(5)}]`)?.click(); return; }
   act('/coach/reply', { value: v, text: b.dataset.l });
@@ -224,7 +227,6 @@ $('#tabs').addEventListener('click', (e) => {
   if (!b) return;
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x.id === `tab-${b.dataset.tab}`));
-  if (b.dataset.tab === 'onboard') window.Onboard?.load();
 });
 
 // ---------- Tabs ----------
@@ -359,10 +361,10 @@ function renderData() {
       <div class="note">Adapter: ${esc(d.meta.source === 'valo-import' ? 'Dữ liệu dán từ app Valo' : d.meta.source === 'mock' ? 'Mock (dữ liệu hư cấu)' : S.adapter.label)} · dữ liệu ngày ${esc(d.asOf)}${d.meta.fallbackReason ? ` · <b style="color:var(--warn)">Đang dùng mock vì: ${esc(d.meta.fallbackReason)}</b>` : ''}</div>
       ${d.edited ? '<div class="note">Có chỉnh sửa tay chồng lên dữ liệu gốc.</div>' : ''}</div>
     <div class="card form"><b>Bộ dữ liệu tài chính</b>
-      <select id="ds"><option value="valo-import" ${S.user.dataset === 'valo-import' ? 'selected' : ''}>Dán dữ liệu từ Valo (mặc định)</option><option value="mr-sample" ${S.user.dataset === 'mr-sample' ? 'selected' : ''}>Bộ test 1: đóng BHXH liên tục 01/2018-10/2026</option><option value="mr-sample-gap" ${S.user.dataset === 'mr-sample-gap' ? 'selected' : ''}>Bộ test 2: thiếu BHXH 03, 04, 05/2022</option><option value="valo" ${S.user.dataset === 'valo' ? 'selected' : ''}>Valo API ${S.adapter.configured ? '' : '(chưa cấu hình, sẽ dùng dữ liệu mẫu)'}</option></select>
+      <select id="ds"><option value="valo-import" ${S.user.dataset === 'valo-import' ? 'selected' : ''}>Dán dữ liệu từ Valo (mặc định)</option><option value="self-report" ${S.user.dataset === 'self-report' ? 'selected' : ''}>Chưa dùng Valo: trò chuyện để tự khai</option><option value="mr-sample" ${S.user.dataset === 'mr-sample' ? 'selected' : ''}>Bộ test 1: đóng BHXH liên tục 01/2018-10/2026</option><option value="mr-sample-gap" ${S.user.dataset === 'mr-sample-gap' ? 'selected' : ''}>Bộ test 2: thiếu BHXH 03, 04, 05/2022</option><option value="valo" ${S.user.dataset === 'valo' ? 'selected' : ''}>Valo API ${S.adapter.configured ? '' : '(chưa cấu hình, sẽ dùng dữ liệu mẫu)'}</option></select>
       ${S.user.dataset === 'valo-import' ? `<div class="note" style="margin-top:8px">Trong app Valo: mở Cố vấn AI → bấm "Chỉ sao chép dữ liệu" (JSON valo-financial-context), rồi dán vào ô dưới hoặc chọn file JSON. Dữ liệu chỉ lưu trên máy đang chạy Valo Agent.${S.user.hasValoImport ? '' : ' <b style="color:var(--warn)">Chưa có dữ liệu dán, đang tạm hiển thị dữ liệu mẫu Mr. Sample.</b>'}</div>
       <textarea id="valoPaste" rows="4" placeholder='{"schema":"valo-financial-context", ...}' style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font:12px ui-monospace,monospace"></textarea>
-      <div class="inline"><input type="file" id="valoFile" accept="application/json,.json"><button class="btn primary" id="btnImport">Nhập dữ liệu Valo</button></div>` : '<div class="note">Bộ test 1 và 2 là dữ liệu hư cấu có nhãn (Mr. Sample). "Valo API" đọc qua adapter HTTP; lỗi thì tự rơi về dữ liệu mẫu và ghi rõ lý do.</div>'}</div>
+      <div class="inline"><input type="file" id="valoFile" accept="application/json,.json"><button class="btn primary" id="btnImport">Nhập dữ liệu Valo</button></div>` : S.user.dataset === 'self-report' ? `<div class="note" style="margin-top:8px">Agent hỏi từng câu ngay trong khung chat coaching. Khai xong, lời khai thành nguồn dữ liệu chung cho Tổng quan, Công cụ, Cam kết và coaching; BHXH để trống cho tới khi nối Valo.${S.user.hasSelfReport ? '' : ' <b style="color:var(--warn)">Chưa khai xong, đang tạm hiển thị dữ liệu mẫu Mr. Sample.</b>'}</div>${S.user.hasSelfReport ? '<div class="inline"><button class="btn" id="btnSelfRedo">Khai lại từ đầu</button></div>' : ''}` : '<div class="note">Bộ test 1 và 2 là dữ liệu hư cấu có nhãn (Mr. Sample). "Valo API" đọc qua adapter HTTP; lỗi thì tự rơi về dữ liệu mẫu và ghi rõ lý do.</div>'}</div>
     <div class="card form"><b>Dữ liệu đổi → agent đánh giá lại theo sự kiện</b>
       <div class="inline"><label>Số dư quỹ dự phòng (đ)<input id="inEf" type="number" value="${d.accounts.find((a) => a.isEmergencyFund)?.balance ?? 0}" step="1000000"></label>
       <label>Chi tiêu tháng gần nhất (đ)<input id="inSp" type="number" value="" placeholder="giữ nguyên"></label></div>
@@ -377,6 +379,7 @@ function renderData() {
   $('#ds').addEventListener('change', (e) => act('/dataset', { dataset: e.target.value }));
   $('#valoFile')?.addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) $('#valoPaste').value = await f.text(); });
   $('#btnImport')?.addEventListener('click', () => { const t = $('#valoPaste').value.trim(); if (t) act('/valo/import', { data: t }); });
+  $('#btnSelfRedo')?.addEventListener('click', () => act('/selfreport/restart', {}));
   $('#btnUpd').addEventListener('click', () => act('/data/update', { emergencyFund: $('#inEf').value, lastMonthSpending: $('#inSp').value }));
   document.querySelectorAll('[data-days]').forEach((b) => b.addEventListener('click', () => act('/time/advance', { days: Number(b.dataset.days) })));
   $('#btnReset').addEventListener('click', () => { if (confirm('Xoá toàn bộ hồ sơ coaching demo?')) act('/reset', {}); });
@@ -482,85 +485,4 @@ window.ValoApp = { act, api, get state() { return S; }, esc, factSpan, factTable
   setBusy(true);
   try { S = await api('/state'); render(); } catch (e) { $('#chat').innerHTML = `<p>Lỗi tải: ${esc(e.message)}</p>`; }
   setBusy(false);
-})();
-
-// ---------- Nhánh chưa dùng Valo ----------
-window.Onboard = (() => {
-  const { act: _a, api, esc, factSpan, factTable, renderSegments, aiBadge, verifyBadge } = window.ValoApp;
-  let O = null;
-  let wait = false;
-  const el = () => document.querySelector('#tab-onboard');
-  async function call(path, body) {
-    if (wait) return;
-    wait = true;
-    renderView(true);
-    try { O = await api(path, body); } catch (e) { alert(e.message); }
-    wait = false;
-    renderView();
-  }
-  function bar(parts, total) {
-    return `<div style="display:flex;height:22px;border-radius:6px;overflow:hidden;border:1px solid var(--line)">${parts.filter((p) => p.v > 0).map((p) => `<span title="${esc(p.l)}" style="width:${(p.v / total) * 100}%;background:${p.c};color:#fff;font-size:11px;display:grid;place-items:center;overflow:hidden;white-space:nowrap">${esc(p.l)}</span>`).join('')}</div>`;
-  }
-  function mapView(p) {
-    const fm = Object.fromEntries(p.facts.map((f) => [f.id, f]));
-    const fl = p.flow;
-    const flowTotal = Math.max(fl.income, fl.expense + fl.debtPay, 1);
-    const b = p.balance;
-    const balTotal = Math.max(b.emergency + b.savings, b.debt, 1);
-    const ef = fm.ob_ef_months.value;
-    const need = fm.ob_goal_need.value;
-    const cap = Math.max(0, fm.ob_surplus.value);
-    const gTotal = Math.max(need, cap, 1);
-    return `<h3>Bản đồ tài chính (hồ sơ tạm)</h3>
-      <div class="card"><div class="note">Điều bạn chưa yên tâm nhất</div><b>"${esc(p.worry)}"</b>${p.worryImpact ? `<div class="note">Khi giải quyết được: ${esc(p.worryImpact)}</div>` : ''}</div>
-      <div class="card"><b>Dòng tiền tháng</b> · thu nhập ${factSpan(fm.ob_income)}
-        <div style="margin:8px 0">${bar([{ v: fl.expense, l: 'Chi tiêu', c: '#8a8f2a' }, { v: fl.debtPay, l: 'Trả nợ', c: 'var(--neg)' }, { v: Math.max(0, fl.surplus), l: 'Dư', c: 'var(--pos)' }], flowTotal)}</div>
-        <div class="note">Dư ${factSpan(fm.ob_surplus)} · tỷ lệ để dành ${factSpan(fm.ob_saving_rate)} · trả nợ/thu nhập ${factSpan(fm.ob_dti)}</div></div>
-      <div class="card"><b>Tài sản và nợ</b>
-        <div style="margin:8px 0">${bar([{ v: b.emergency, l: 'Quỹ khẩn cấp', c: 'var(--info)' }, { v: b.savings, l: 'Tiết kiệm, đầu tư', c: 'var(--pos)' }], balTotal)}</div>
-        <div style="margin:8px 0">${bar([{ v: b.debt, l: 'Nợ', c: 'var(--neg)' }], balTotal)}</div>
-        <div class="note">Tài sản ròng tài chính ${factSpan(fm.ob_net)}</div></div>
-      <div class="card"><b>Quỹ khẩn cấp</b> đủ ${factSpan(fm.ob_ef_months)}
-        <div class="gauge"><i class="${ef >= 3 ? 'ok' : ''}" style="width:${Math.min(100, (ef / 6) * 100)}%"></i><span class="tick" style="left:50%"></span></div>
-        <div class="note">Vạch giữa = ngưỡng 3 tháng.</div></div>
-      <div class="card"><b>Mục tiêu: ${esc(p.goalName || '')}</b> ${factSpan(fm.ob_goal)}
-        <div class="note" style="margin-top:6px">Cần để dành mỗi tháng</div>${bar([{ v: need, l: 'Cần', c: 'var(--warn)' }], gTotal)}
-        <div class="note" style="margin-top:6px">Khả năng hiện tại (dòng tiền dư)</div>${bar([{ v: cap, l: 'Có thể', c: 'var(--pos)' }], gTotal)}
-        <div class="note">Chênh ${factSpan(fm.ob_goal_gap)} · nếu dồn toàn bộ phần dư: ${factSpan(fm.ob_goal_at_surplus)}</div></div>
-      <div class="card"><b>Điểm cần chú ý</b><ul>${p.flags.map((f) => `<li>${esc(f.text)}: ${factSpan(fm[f.factId])}</li>`).join('') || '<li>Không có điểm lệch ngưỡng.</li>'}</ul>
-        <div class="note">Khẩu vị rủi ro: ${factSpan(fm.ob_risk)}</div></div>
-      ${factTable(p.facts)}
-      <div class="card" style="border-color:var(--pos)"><b>Nối Valo để số liệu tự cập nhật</b>
-        <p class="note">Hồ sơ này dựa trên lời khai nên sẽ cũ dần. Khi nối Valo, Agent Thu thập đọc số dư, chi tiêu và lịch sử BHXH qua adapter và tự đánh giá lại mỗi khi dữ liệu đổi.</p>
-        <button class="btn primary" id="obConnect">Nối Valo</button> <button class="btn" id="obRestart">Làm lại từ đầu</button></div>`;
-  }
-  function renderView(loading) {
-    const box = el();
-    if (!O || (!O.active && !O.messages?.length)) {
-      box.innerHTML = `<h3>Dành cho người chưa dùng Valo</h3>
-        <div class="card"><p>Khoảng 12-13 câu hỏi ngắn theo kiểu khai vấn, mỗi lần một câu. Bắt đầu từ điều bạn đang lo nhất về tiền bạc, rồi mới tới con số. Kết thúc bằng một bản đồ tài chính trực quan và hồ sơ tạm.</p>
-        <button class="btn primary" id="obStart">Bắt đầu</button></div>`;
-      box.querySelector('#obStart').onclick = () => call('/onboarding/start', {});
-      return;
-    }
-    const msgs = O.messages.map((m) => m.role === 'user' ? `<div class="msg user">${esc(m.text)}</div>`
-      : `<div class="msg"><div class="meta">${aiBadge(m)} ${verifyBadge(m)}</div><div class="body">${renderSegments(m)}</div></div>`).join('');
-    const q = O.question;
-    box.innerHTML = `<div class="note">Câu ${Math.min(O.idx + 1, O.total)}/${O.total}${O.done ? ' · đã xong' : ''}</div>
-      <div class="chat" style="max-height:${O.done ? '260px' : '460px'};padding:8px 0">${msgs}</div>
-      ${loading ? '<div class="typing">Coach đang trả lời…</div>' : ''}
-      ${q ? `<div class="chips" style="padding:6px 0">${q.chips.map((c) => `<button class="chip" data-ob="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-        <form id="obForm" class="composer" style="padding:6px 0;border:0"><input id="obIn" placeholder="${q.type === 'money' ? 'Ví dụ: 15 triệu, 500k, 20.000.000' : q.type === 'number' ? 'Nhập một con số' : 'Trả lời bằng lời của bạn'}" autocomplete="off"><button class="btn primary">Gửi</button></form>` : ''}
-      ${O.done && O.profile ? mapView(O.profile) : ''}`;
-    const c = box.querySelector('.chat');
-    if (c) c.scrollTop = c.scrollHeight;
-    box.querySelectorAll('[data-ob]').forEach((b) => (b.onclick = () => call('/onboarding/answer', { text: b.dataset.ob })));
-    const f = box.querySelector('#obForm');
-    if (f) f.onsubmit = (e) => { e.preventDefault(); const t = box.querySelector('#obIn').value.trim(); if (t) call('/onboarding/answer', { text: t }); };
-    const cn = box.querySelector('#obConnect');
-    if (cn) cn.onclick = async () => { if (S.user.dataset !== 'valo-import') await act('/dataset', { dataset: 'valo-import' }); document.querySelector('[data-tab=data]').click(); setTimeout(() => document.querySelector('#valoPaste')?.focus(), 50); };
-    const rs = box.querySelector('#obRestart');
-    if (rs) rs.onclick = () => call('/onboarding/start', {});
-  }
-  return { async load() { if (!O) { O = await api('/onboarding'); } renderView(); } };
 })();

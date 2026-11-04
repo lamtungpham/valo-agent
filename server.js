@@ -10,7 +10,6 @@ import { addDays } from './src/agents/analyst.js';
 import { museStatus } from './src/llm/muse.js';
 import { adapterStatus } from './src/adapters/index.js';
 import { runTool } from './src/agents/tools.js';
-import * as onboarding from './src/agents/onboarding.js';
 import { mapValoContext } from './src/adapters/valoContextMapper.js';
 import { progress } from './src/progress.js';
 
@@ -98,7 +97,7 @@ async function route(req, res, path, user, uid) {
     return state();
   }
   if (path === '/api/dataset') {
-    user.dataset = ['mr-sample', 'mr-sample-gap', 'valo', 'valo-import'].includes(body.dataset) ? body.dataset : 'mr-sample';
+    user.dataset = ['mr-sample', 'mr-sample-gap', 'valo', 'valo-import', 'self-report'].includes(body.dataset) ? body.dataset : 'mr-sample';
     await onDataChange(user, 'dataset-change');
     return state();
   }
@@ -127,9 +126,14 @@ async function route(req, res, path, user, uid) {
   }
   if (path === '/api/commitments/mark') { await markCommitment(user, body.id, body.status); return state(); }
   if (path === '/api/tools/run') { const result = await runTool(user, body); save(); return json(res, 200, { result, state: await viewState(user, ext()) }); }
-  if (path === '/api/onboarding/start') { await onboarding.start(user); return json(res, 200, onboarding.view(user)); }
-  if (path === '/api/onboarding/answer') { await onboarding.answer(user, body); return json(res, 200, onboarding.view(user)); }
-  if (path === '/api/onboarding' && req.method === 'GET') return json(res, 200, onboarding.view(user));
+  if (path === '/api/selfreport/restart') {
+    user.selfReport = null;
+    user.onboarding = null;
+    user.session = null;
+    user.dataset = 'self-report';
+    await onDataChange(user, 'dataset-change');
+    return state();
+  }
   if (path === '/api/reset') { resetUser(uid); const u = getUser(uid); await onDataChange(u, 'first-open'); return json(res, 200, await viewState(u, ext())); }
   return json(res, 404, { error: 'Không có endpoint này' });
 }

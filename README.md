@@ -54,7 +54,7 @@ Muốn bật AI, sao chép `.env.example` thành `.env` và điền `META_API_KE
 | `src/agents/verifier.js` | Agent Kiểm chứng: chặn mọi chữ số hoặc số viết bằng chữ ngoài fact, mã fact bịa; khi chặn thì dùng lời dẫn mẫu |
 | `src/agents/orchestrator.js` | Agent chính: vòng GROW, trách nhiệm giải trình, đánh giá theo sự kiện, tóm tắt định kỳ |
 | `src/agents/tools.js` | Tool hành động: tạo mục tiêu, đặt nhắc, what-if, so sánh A/B, mô phỏng sốc |
-| `src/agents/onboarding.js` | Nhánh chưa dùng Valo: 13 câu khai vấn, bản đồ tài chính, hồ sơ tạm |
+| `src/agents/onboarding.js` | Nhánh chưa dùng Valo: 13 câu hỏi ngay trong khung chat coaching; lời khai dựng thành snapshot chuẩn (bộ dữ liệu `self-report`) nên Tổng quan, Công cụ, Cam kết và coaching dùng chung |
 | `src/adapters/` | `valoAdapter.js` (interface), `mockAdapter.js` (dữ liệu hư cấu), `httpAdapter.js` + `valoContextMapper.js` (Valo thật), `index.js` (chọn adapter, fallback mock có nhãn) |
 | `src/llm/muse.js` | Client Muse Spark (OpenAI-compatible `/chat/completions`), key từ biến môi trường |
 | `src/store.js` | Hồ sơ coaching bền vững trong `data/store.json` (đã gitignore): mục tiêu, cam kết, lịch sử vi phạm, phiên GROW đang dở, dữ liệu Valo đã dán. Một người dùng; bản nhiều người dùng sẽ dùng chung đăng nhập Supabase của Valo với bảng hồ sơ coaching có RLS |
