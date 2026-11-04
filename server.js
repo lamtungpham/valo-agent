@@ -1,5 +1,6 @@
 // Valo Agent: máy chủ HTTP không phụ thuộc thư viện ngoài. Chạy: npm start
 import { createServer } from 'node:http';
+import { randomBytes } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +33,8 @@ const json = (res, code, body) => {
 };
 
 async function readBody(req) {
+  // Trên Vercel, body có thể đã được đọc sẵn vào req.body
+  if (req.body !== undefined) return typeof req.body === 'string' ? (req.body ? JSON.parse(req.body) : {}) : req.body || {};
   let s = '';
   for await (const chunk of req) { s += chunk; if (s.length > 100000) throw new Error('Body quá lớn'); }
   return s ? JSON.parse(s) : {};
@@ -39,8 +42,19 @@ async function readBody(req) {
 
 const ext = () => ({ muse: museStatus(), adapter: adapterStatus() });
 
+// Chạy cục bộ: một hồ sơ duy nhất. Trên Vercel: mỗi trình duyệt một hồ sơ riêng (cookie va_uid), để khách xem demo không đè lên nhau.
+function userId(req, res) {
+  if (!process.env.VERCEL) return 'mr-sample';
+  const m = /(?:^|;\s*)va_uid=([a-z0-9]{8,32})/.exec(req.headers.cookie || '');
+  if (m) return m[1];
+  const id = randomBytes(8).toString('hex');
+  res.setHeader('Set-Cookie', `va_uid=${id}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax; Secure`);
+  return id;
+}
+
 async function api(req, res, path) {
-  const user = getUser('mr-sample');
+  const uid = userId(req, res);
+  const user = getUser(uid);
   const body = req.method === 'POST' ? await readBody(req) : {};
   const state = async () => json(res, 200, await viewState(user, ext()));
 
@@ -101,11 +115,11 @@ async function api(req, res, path) {
   if (path === '/api/onboarding/start') { await onboarding.start(user); return json(res, 200, onboarding.view(user)); }
   if (path === '/api/onboarding/answer') { await onboarding.answer(user, body); return json(res, 200, onboarding.view(user)); }
   if (path === '/api/onboarding' && req.method === 'GET') return json(res, 200, onboarding.view(user));
-  if (path === '/api/reset') { resetUser('mr-sample'); const u = getUser('mr-sample'); await onDataChange(u, 'first-open'); return json(res, 200, await viewState(u, ext())); }
+  if (path === '/api/reset') { resetUser(uid); const u = getUser(uid); await onDataChange(u, 'first-open'); return json(res, 200, await viewState(u, ext())); }
   return json(res, 404, { error: 'Không có endpoint này' });
 }
 
-const server = createServer(async (req, res) => {
+export async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url.pathname);
@@ -118,9 +132,10 @@ const server = createServer(async (req, res) => {
     console.error(e);
     json(res, 500, { error: e.message });
   }
-});
+}
 
-server.listen(PORT, () => {
+// Chỉ mở cổng khi chạy trực tiếp (npm start); trên Vercel, api/index.js gọi handler.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) createServer(handler).listen(PORT, () => {
   const m = museStatus();
   const a = adapterStatus();
   console.log(`\nValo Agent đang chạy: http://localhost:${PORT}`);

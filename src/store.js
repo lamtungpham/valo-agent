@@ -3,7 +3,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const FILE = process.env.VALO_AGENT_STORE || new URL('../data/store.json', import.meta.url).pathname;
+// Trên Vercel chỉ /tmp ghi được (tạm thời, mất khi máy chủ khởi động lại)
+const FILE = process.env.VALO_AGENT_STORE || (process.env.VERCEL ? '/tmp/valo-agent-store.json' : new URL('../data/store.json', import.meta.url).pathname);
 
 export const START_DATE = '2026-11-04';
 
