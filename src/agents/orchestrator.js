@@ -11,6 +11,7 @@ import { fact } from '../engine/facts.js';
 import { stateAtAge } from '../engine/bhxh.js';
 import { save, uid, START_DATE } from '../store.js';
 import { goalFactId, THRESHOLDS, shockJobLoss } from '../engine/finance.js';
+import { detectIssues, matchTopic, TOPICS, knowhowChips } from './topics.js';
 
 const vnd = (n) => `${new Intl.NumberFormat('vi-VN').format(Math.round(n))} đ`;
 
@@ -68,7 +69,7 @@ const ALERT_TPL = {
   commit_overdue: { intent: 'Trách nhiệm giải trình: cam kết quá hạn chưa xác nhận', t: 'Cam kết "{{c_text}}" đã qua hạn {{c_due}} mà mình chưa thấy anh xác nhận. Mình muốn cùng anh nhìn lại xem vướng ở đâu.', chips: [{ label: 'Mở phiên nhìn lại', value: 'start' }] },
 };
 
-export async function evaluateEvents(user, a, logs, { reason = 'data-change' } = {}) {
+export async function evaluateEvents(user, a, logs, { reason = 'data-change', silent = [] } = {}) {
   const rank = { info: 0, medium: 1, high: 2 };
   // phát cảnh báo nhẹ trước, nặng sau: tin cuối cùng (kèm nút hành động) là việc quan trọng nhất
   const fresh = a.events.filter((e) => user.alertKeys[e.key] !== e.dedupe).sort((x, y) => rank[x.severity] - rank[y.severity]);
@@ -76,7 +77,7 @@ export async function evaluateEvents(user, a, logs, { reason = 'data-change' } =
   for (const e of fresh) {
     user.alertKeys[e.key] = e.dedupe;
     const tpl = ALERT_TPL[e.key];
-    if (!tpl) continue;
+    if (!tpl || silent.includes(e.key)) continue; // đã nằm trong bản tổng kết
     const c = e.commitmentId ? user.commitments.find((x) => x.id === e.commitmentId) : null;
     const extraFacts = commitmentFacts(user, c);
     const factIds = [...e.factIds, ...(c ? ['c_text', 'c_due'] : [])];
@@ -192,8 +193,8 @@ async function step(user, a, logs, o) {
   return compose(user, a, { input: true, ...o, extraFacts }, logs);
 }
 
-function newSession(user, data = {}) {
-  user.session = { id: uid('ss'), topic: 'emergency', step: null, data, startedAt: user.simDate };
+function newSession(user, data = {}, topic = 'emergency') {
+  user.session = { id: uid('ss'), topic, step: null, data, startedAt: user.simDate };
   return user.session;
 }
 
@@ -217,19 +218,91 @@ function shockFacts(a) {
   ];
 }
 
+const topicOf = (user) => (user.session && user.session.topic !== 'emergency' ? TOPICS[user.session.topic] : null);
+/** Fact của chủ đề đang coaching, tính lại từ dữ liệu mới nhất ở mỗi bước. */
+function topicFacts(user, a) {
+  const T = topicOf(user);
+  const s = user.session;
+  if (!T) return [];
+  s.data.dueDate = s.data.dueDate || addDays(user.simDate, s.data.days || 7);
+  return [...T.facts(a, s.data), fact('w_due', { label: 'Hạn cam kết', value: fmtDate(s.data.dueDate), unit: 'text', formula: 'Hôm nay + số ngày anh chọn', source: 'Phiên coaching', asOf: fmtDate(user.simDate) })];
+}
+
+// ----- Tổng kết tài chính + chọn vấn đề -----
+const ORDINAL = ['Thứ nhất', 'Thứ hai', 'Thứ ba', 'Thứ tư'];
+export async function financialOverview(user, a, logs, { head } = {}) {
+  const issues = detectIssues(a);
+  user.pendingFocus = issues.map((i) => i.key);
+  const asOf = fmtDate(a.snap.asOf);
+  const extraFacts = [fact('iss_count', { label: 'Số điểm cần cải thiện', value: issues.length, unit: 'count', formula: 'Đếm các chỉ số lệch ngưỡng (engine)', source: 'Agent Phân tích', asOf })];
+  const sumIds = ['monthly_income', 'monthly_expense', 'monthly_surplus', 'ef_months', 'net_worth', 'bhxh_pension'];
+  const summary = `${head || 'Tổng kết tình hình tài chính theo dữ liệu mới nhất'}: thu nhập ròng {{monthly_income}} mỗi tháng, chi tiêu trung bình {{monthly_expense}}, còn dư {{monthly_surplus}}; quỹ dự phòng đủ {{ef_months}} chi tiêu; tài sản ròng {{net_worth}}; lương hưu dự kiến {{bhxh_pension}} mỗi tháng.`;
+  if (!issues.length) {
+    await compose(user, a, {
+      step: 'OVERVIEW', intent: 'Tổng kết tài chính: mọi chỉ số chính đều ổn, ghi nhận cụ thể rồi hỏi người dùng muốn hướng tới điều gì tiếp theo',
+      question: 'Điều gì anh muốn hướng tới tiếp theo?', factIds: sumIds, extraFacts,
+      template: `${summary} Các chỉ số chính đều đang ở vùng an toàn. Điều gì anh muốn hướng tới tiếp theo?`,
+      chips: [{ label: 'Tạo mục tiêu mới', value: 'ui:tools' }, { label: 'Xem trợ lý BHXH', value: 'ui:bhxh' }],
+    }, logs);
+    return;
+  }
+  const list = issues.map((i, k) => `${ORDINAL[k]}, ${i.text}.`).join(' ');
+  await compose(user, a, {
+    step: 'OVERVIEW',
+    intent: 'Tổng kết tài chính theo dữ liệu mới nhất, rồi liệt kê các điểm chưa tốt theo đúng thứ tự, không khuyên, kết thúc bằng câu hỏi để người dùng tự chọn điểm muốn tập trung trước',
+    question: 'Anh muốn tập trung xử lý điểm nào trước?',
+    factIds: [...sumIds, 'iss_count', ...issues.flatMap((i) => i.factIds)], extraFacts,
+    template: `${summary} Mình thấy {{iss_count}} điểm có thể cải thiện. ${list} Anh muốn tập trung xử lý điểm nào trước?`,
+    chips: [...issues.map((i) => ({ label: i.label, value: `focus:${i.key}` })), { label: 'Để sau', value: 'focus:none' }],
+  }, logs);
+  logs.push({ agent: 'Agent chính', action: 'overview', issues: issues.map((i) => i.key) });
+}
+
+async function startTopic(user, a, logs, key) {
+  user.pendingFocus = null;
+  user.session = null;
+  if (key === 'none' || !key) {
+    await compose(user, a, { step: 'OVERVIEW', intent: 'Người dùng chưa muốn xử lý lúc này: tôn trọng, nói rõ có thể quay lại bất cứ lúc nào', template: 'Được anh, mình không vội. Khi nào sẵn sàng, anh bấm "Bắt đầu / tiếp tục phiên" để mình tổng kết lại và cùng chọn việc cần làm.' }, logs);
+    return;
+  }
+  await askStage(user, a, logs, key);
+}
+
 // ----- Stages of Change + MI -----
-async function askStage(user, a, logs) {
-  newSession(user);
+async function askStage(user, a, logs, topic = 'emergency') {
+  newSession(user, {}, topic);
+  const T = topicOf(user);
+  if (T) {
+    const label = detectIssues(a).find((i) => i.key === topic);
+    await step(user, a, logs, {
+      step: 'ST', intent: `Người dùng chọn tập trung vào việc ${T.name}. Hỏi mức sẵn sàng thay đổi, không phán xét, chưa bàn con số`,
+      question: `Nói thật lòng, chuyện ${T.name} lúc này với anh đang ở mức nào?`,
+      factIds: label ? label.factIds : [],
+      template: `Mình cùng tập trung vào việc ${T.name} nhé. Trước khi bàn con số, mình muốn hiểu anh đang đứng ở đâu. Nói thật lòng, chuyện ${T.name} lúc này với anh đang ở mức nào?`,
+      chips: STAGES.map((x) => ({ label: x.label, value: x.value })),
+    });
+    return;
+  }
   await step(user, a, logs, {
     step: 'ST', intent: 'Stages of Change: hỏi mức sẵn sàng thay đổi, không phán xét, chưa bàn con số mục tiêu',
     question: 'Nói thật lòng, chuyện xây quỹ dự phòng lúc này với anh đang ở mức nào?',
-    factIds: ['ef_months', 'ef_threshold'],
-    template: 'Quỹ dự phòng của anh hiện đủ khoảng {{ef_months}} chi tiêu, dưới ngưỡng an toàn {{ef_threshold}}. Trước khi bàn con số, mình muốn hiểu anh đang đứng ở đâu. Nói thật lòng, chuyện xây quỹ dự phòng lúc này với anh đang ở mức nào?',
+    factIds: ['ef_months', a.fin.ef.months < THRESHOLDS.emergencyMinMonths ? 'ef_threshold' : 'ef_target'],
+    template: (a.fin.ef.months < THRESHOLDS.emergencyMinMonths ? 'Quỹ dự phòng của anh hiện đủ khoảng {{ef_months}} chi tiêu, dưới ngưỡng an toàn {{ef_threshold}}.' : 'Quỹ dự phòng của anh hiện đủ khoảng {{ef_months}} chi tiêu, chưa tới mức khuyến nghị {{ef_target}}.') + ' Trước khi bàn con số, mình muốn hiểu anh đang đứng ở đâu. Nói thật lòng, chuyện xây quỹ dự phòng lúc này với anh đang ở mức nào?',
     chips: STAGES.map((x) => ({ label: x.label, value: x.value })),
   });
 }
 
 async function askMI1(user, a, logs, answer) {
+  const T = topicOf(user);
+  if (T) {
+    await step(user, a, logs, {
+      step: 'MI1', intent: 'Phỏng vấn tạo động lực (MI): tôn trọng quyền tự quyết, khơi khoảng cách giữa hiện tại và điều người dùng coi trọng bằng một câu hỏi mở, không thuyết giảng', userAnswer: answer,
+      question: 'Nếu mọi thứ cứ giữ nguyên như bây giờ thêm một năm nữa, điều đó có ý nghĩa gì với anh?',
+      template: `Mình tôn trọng điều đó, quyết định là của anh. Thử hình dung chuyện ${T.name} cứ giữ nguyên như bây giờ thêm một năm nữa. Điều đó có ý nghĩa gì với anh?`,
+      chips: [{ label: 'Khá đáng lo', value: 'Khá đáng lo' }, { label: 'Chắc vẫn ổn', value: 'Chắc vẫn ổn' }, { label: 'Chưa nghĩ tới chuyện đó', value: 'Chưa nghĩ tới chuyện đó' }],
+    });
+    return;
+  }
   await step(user, a, logs, {
     step: 'MI1', intent: 'Phỏng vấn tạo động lực (MI): tôn trọng quyền tự quyết, khơi khoảng cách giữa hiện tại và điều người dùng coi trọng bằng một câu hỏi mở, không thuyết giảng', userAnswer: answer,
     question: 'Điều đó có ý nghĩa gì với anh?',
@@ -243,7 +316,7 @@ async function askMI2(user, a, logs, answer) {
   await step(user, a, logs, {
     step: 'MI2', intent: 'MI: phản chiếu hai mặt của sự lưỡng lự (muốn và ngại), không tranh luận, hỏi điều gì khiến còn chần chừ', userAnswer: answer,
     question: 'Điều gì khiến anh còn chần chừ?',
-    template: 'Nghe như một phần trong anh thấy cần có chỗ dựa khi có biến cố, còn một phần khác vẫn đang ngần ngại, và cả hai đều có lý do. Điều gì khiến anh còn chần chừ?',
+    template: topicOf(user) ? 'Nghe như một phần trong anh thấy chuyện này đáng làm, còn một phần khác vẫn đang ngần ngại, và cả hai đều có lý do. Điều gì khiến anh còn chần chừ?' : 'Nghe như một phần trong anh thấy cần có chỗ dựa khi có biến cố, còn một phần khác vẫn đang ngần ngại, và cả hai đều có lý do. Điều gì khiến anh còn chần chừ?',
     chips: [{ label: 'Muốn dồn tiền cho mục tiêu lớn hơn', value: 'Muốn dồn tiền cho mục tiêu lớn hơn' }, { label: 'Sợ phải cắt chi tiêu', value: 'Sợ phải cắt chi tiêu' }, { label: 'Thu nhập chưa ổn định', value: 'Thu nhập chưa ổn định' }],
   });
 }
@@ -251,8 +324,8 @@ async function askMI2(user, a, logs, answer) {
 async function askMI3(user, a, logs, answer) {
   await step(user, a, logs, {
     step: 'MI3', intent: 'MI: ghi nhận lý do ngần ngại là chính đáng, rồi hỏi thước đo tầm quan trọng và vì sao không thấp hơn (khơi lời nói thay đổi)', userAnswer: answer,
-    question: 'Trên thang đó, việc có quỹ dự phòng quan trọng với anh tới mức nào, và vì sao không phải mức thấp hơn?',
-    template: 'Đó là lý do rất thật. Trên thang {{k_scale}}, việc có quỹ dự phòng quan trọng với anh tới mức nào, và vì sao không phải mức thấp hơn?',
+    question: `Trên thang đó, việc ${topicOf(user)?.name || 'có quỹ dự phòng'} quan trọng với anh tới mức nào, và vì sao không phải mức thấp hơn?`,
+    template: `Đó là lý do rất thật. Trên thang {{k_scale}}, việc ${topicOf(user)?.name || 'có quỹ dự phòng'} quan trọng với anh tới mức nào, và vì sao không phải mức thấp hơn?`,
     chips: scoreChips(),
   });
 }
@@ -260,9 +333,9 @@ async function askMI3(user, a, logs, answer) {
 async function endMI(user, a, logs, answer) {
   const s = user.session;
   const recheck = addDays(user.simDate, 7);
-  user.reminders.unshift({ id: uid('r'), date: recheck, text: 'Hỏi lại về quỹ dự phòng (MI, không ép)', fired: false });
+  user.reminders.unshift({ id: uid('r'), date: recheck, text: `Hỏi lại về việc ${topicOf(user)?.name || 'xây quỹ dự phòng'} (không ép)`, fired: false });
   user.readiness = { stage: s.data.stage, importance: s.data.importance, date: user.simDate };
-  user.sessions.unshift({ id: s.id, topic: 'mi', startedAt: s.startedAt, endedAt: user.simDate, stage: s.data.stage, importance: s.data.importance, reality: s.data.hesitation });
+  user.sessions.unshift({ id: s.id, topic: `mi:${s.topic}`, startedAt: s.startedAt, endedAt: user.simDate, stage: s.data.stage, importance: s.data.importance, reality: s.data.hesitation });
   await step(user, a, logs, {
     step: 'MI-END', intent: 'MI: kết phiên tôn trọng, không ép hành động, tóm tắt điều người dùng nói, hẹn hỏi lại', userAnswer: answer,
     extraFacts: [fact('mi_recheck', { label: 'Ngày hỏi lại', value: fmtDate(recheck), unit: 'text', formula: 'Hôm nay + 7 ngày', source: 'Lịch nhắc', asOf: fmtDate(user.simDate) })],
@@ -275,6 +348,12 @@ async function endMI(user, a, logs, answer) {
 // ----- GROW + OSKAR -----
 async function askGoal(user, a, logs, extra) {
   if (!user.session) newSession(user);
+  const T = topicOf(user);
+  if (T) {
+    const g = T.goal(a);
+    await step(user, a, logs, { step: 'G', intent: 'GROW Goal / OSKAR Outcome: hỏi đích đến người dùng muốn, bằng một câu hỏi mở', extra, extraFacts: topicFacts(user, a), ...g });
+    return;
+  }
   await step(user, a, logs, {
     step: 'G', intent: 'GROW Goal / OSKAR Outcome: hỏi đích đến bằng hình ảnh kết quả mong muốn', extra,
     question: 'Nó cần gánh được bao nhiêu tháng chi tiêu?',
@@ -286,6 +365,13 @@ async function askGoal(user, a, logs, extra) {
 
 async function askScaling(user, a, logs, answer) {
   const s = user.session;
+  const T = topicOf(user);
+  if (T) {
+    const r = T.reality(a);
+    const prevT = s.data.prevScore != null ? 'Lần trước anh tự chấm {{s_prev_score}}. ' : '';
+    await step(user, a, logs, { step: 'S', intent: 'GROW Reality / OSKAR Scaling: nêu thực tế bằng số engine, rồi hỏi người dùng tự chấm trên thang', userAnswer: answer, extraFacts: topicFacts(user, a), chips: scoreChips(), ...r, factIds: [...r.factIds, ...(s.data.prevScore != null ? ['s_prev_score'] : [])], template: prevT + r.template });
+    return;
+  }
   const g = growFacts(a, { targetMonths: s.data.targetMonths });
   const prev = s.data.prevScore != null ? 'Lần trước anh tự chấm {{s_prev_score}}. ' : '';
   await step(user, a, logs, {
@@ -298,6 +384,16 @@ async function askScaling(user, a, logs, answer) {
 }
 
 async function askKnowhow(user, a, logs, answer) {
+  const T = topicOf(user);
+  if (T) {
+    await step(user, a, logs, {
+      step: 'K', intent: 'OSKAR Know-how: ghi nhận điểm người dùng tự chấm như một điểm tựa, hỏi về nguồn lực, kinh nghiệm từng làm được', userAnswer: answer,
+      question: T.knowhowQ, factIds: ['s_score'],
+      template: `Mức {{s_score}} chứ không phải thấp nhất, nghĩa là anh đã có một điểm tựa. ${T.knowhowQ}`,
+      chips: knowhowChips(user.session.topic),
+    });
+    return;
+  }
   await step(user, a, logs, {
     step: 'K', intent: 'OSKAR Know-how: ghi nhận điểm người dùng tự chấm như một điểm tựa, hỏi về nguồn lực, kinh nghiệm từng làm được', userAnswer: answer,
     question: 'Trước đây anh từng để dành thành công cho việc gì, và điều gì giúp anh làm được lúc đó?',
@@ -309,6 +405,14 @@ async function askKnowhow(user, a, logs, answer) {
 
 async function askOptions(user, a, logs, answer, extra) {
   const s = user.session;
+  const T = topicOf(user);
+  if (T) {
+    const tf = topicFacts(user, a);
+    const o = T.options(a);
+    const chips = T.action ? o.chips.map((x) => ({ label: x, value: x })) : s.data.options.map((w, i) => ({ label: `Phương án ${i + 1}: ${vnd(w)}/tuần`, value: String(w) }));
+    await step(user, a, logs, { step: 'O', intent: 'GROW Options: ghi nhận nguồn lực vừa nêu, trình bày các phương án do engine tính, hỏi phương án chắc chắn làm được', userAnswer: answer, extra, extraFacts: tf, ...o, template: (s.data.relapse ? 'Lần này mình chọn mức chắc tay hơn để không lặp lại chuyện cũ. ' : 'Đó là nguồn lực đáng dùng lại. ') + o.template, chips });
+    return;
+  }
   const g = growFacts(a, { targetMonths: s.data.targetMonths });
   s.data.options = g.options.map((o) => o.weekly);
   await step(user, a, logs, {
@@ -329,6 +433,16 @@ function willFacts(user, a) {
 }
 
 async function askOutcome(user, a, logs, answer) {
+  const T = topicOf(user);
+  if (T) {
+    await step(user, a, logs, {
+      step: 'WO1', intent: 'WOOP Wish + Outcome: biến lựa chọn thành điều ước tuần này, mời người dùng hình dung cảm nhận tốt nhất khi làm xong', userAnswer: answer,
+      question: 'Điều tốt đẹp nhất anh cảm nhận được lúc đó là gì?',
+      factIds: [T.action ? 'w_action' : 'w_weekly'], extraFacts: topicFacts(user, a), template: T.outcome,
+      chips: [{ label: 'Nhẹ nhõm hơn', value: 'Nhẹ nhõm hơn' }, { label: 'Tự hào vì giữ lời', value: 'Tự hào vì giữ lời' }, { label: 'Thấy mình làm chủ được', value: 'Thấy mình làm chủ được' }],
+    });
+    return;
+  }
   await step(user, a, logs, {
     step: 'WO1', intent: 'WOOP Wish + Outcome: biến lựa chọn thành điều ước tuần này, mời người dùng hình dung cảm nhận tốt nhất khi làm xong', userAnswer: answer,
     question: 'Điều tốt đẹp nhất anh cảm nhận được lúc đó là gì?',
@@ -344,13 +458,13 @@ async function askObstacle(user, a, logs, answer, extra) {
     question: 'Điều gì bên trong anh, một thói quen, cảm xúc hay suy nghĩ, nhiều khả năng sẽ cản anh làm việc này?',
     factIds: ['s_outcome'],
     template: 'Cảm giác "{{s_outcome}}" là thứ đáng để giữ. Giờ thành thật với chính mình nhé: điều gì bên trong anh, một thói quen, cảm xúc hay suy nghĩ, nhiều khả năng sẽ cản anh làm việc này?',
-    chips: Object.keys(OBSTACLE_PLANS).map((k) => ({ label: k, value: k })),
+    chips: Object.keys(topicOf(user)?.obstacles || OBSTACLE_PLANS).map((k) => ({ label: k, value: k })),
   });
 }
 
 async function askPlan(user, a, logs, answer, extra) {
   const s = user.session;
-  const sug = OBSTACLE_PLANS[s.data.obstacle] || ['Nếu trở ngại đó xuất hiện, thì tôi sẽ chuyển tiền vào quỹ ngay lúc đó'];
+  const sug = (topicOf(user)?.obstacles || OBSTACLE_PLANS)[s.data.obstacle] || [topicOf(user) ? 'Nếu trở ngại đó xuất hiện, thì tôi sẽ làm ngay bước nhỏ nhất của kế hoạch' : 'Nếu trở ngại đó xuất hiện, thì tôi sẽ chuyển tiền vào quỹ ngay lúc đó'];
   await step(user, a, logs, {
     step: 'WP', intent: 'WOOP Plan: mời người dùng tự viết kế hoạch dạng "Nếu… thì tôi sẽ…" cho đúng trở ngại vừa nêu', userAnswer: answer, extra,
     question: 'Anh hoàn thành giúp mình câu: "Nếu … thì tôi sẽ …"?',
@@ -373,6 +487,23 @@ async function askConfidence(user, a, logs, answer) {
 async function proposeWill(user, a, logs, answer) {
   const s = user.session;
   const d = s.data;
+  const T = topicOf(user);
+  if (T) {
+    const p = [];
+    if (d.lowered) p.push('Mức tự tin {{s_conf}} cho thấy kế hoạch còn hơi căng, nên mình hạ xuống {{w_weekly}} mỗi tuần cho chắc tay.');
+    else if (T.action && d.confidence != null && d.confidence < 7) p.push('Mức tự tin {{s_conf}} cho thấy còn hơi căng, nên mình chỉ cần anh làm bước đầu tiên của việc này là đủ.');
+    if (d.knowhow) p.push('Anh từng làm được nhờ "{{s_knowhow}}", đó là điểm mạnh của anh.');
+    p.push(T.will + (d.ifThen ? ', kèm kế hoạch "{{s_ifthen}}".' : '.'));
+    p.push(T.willTail);
+    await step(user, a, logs, {
+      step: 'W', intent: 'GROW Will / OSKAR Affirm + Action: khẳng định điểm mạnh người dùng đã nêu, chốt hành động cụ thể có hạn và kế hoạch nếu-thì', userAnswer: answer,
+      question: 'Anh chốt cam kết này chứ?',
+      factIds: [...T.willIds, ...(d.knowhow ? ['s_knowhow'] : []), ...(d.ifThen ? ['s_ifthen'] : []), ...(d.lowered || T.action ? ['s_conf'] : [])],
+      extraFacts: topicFacts(user, a), template: p.join(' '),
+      chips: T.action ? [{ label: 'Tôi cam kết', value: 'commit' }] : [{ label: 'Tôi cam kết', value: 'commit' }, { label: 'Giảm mức một chút', value: 'lower' }],
+    });
+    return;
+  }
   const parts = [];
   if (d.lowered) parts.push('Mức tự tin {{s_conf}} cho thấy kế hoạch còn hơi căng, nên mình hạ xuống {{w_weekly}} mỗi tuần cho chắc tay.');
   if (d.knowhow) parts.push('Anh từng làm được nhờ "{{s_knowhow}}", đó là điểm mạnh của anh.');
@@ -392,14 +523,16 @@ async function proposeWill(user, a, logs, answer) {
 async function commit(user, a, logs) {
   const s = user.session;
   const d = s.data;
+  const T = topicOf(user);
   const c = {
     id: uid('c'),
-    text: `Để riêng ${vnd(d.weekly)} vào quỹ dự phòng trước ${fmtDate(d.dueDate)}`,
-    amount: d.weekly,
+    topic: s.topic,
+    text: T ? T.commitText(d, vnd, fmtDate(d.dueDate)) : `Để riêng ${vnd(d.weekly)} vào quỹ dự phòng trước ${fmtDate(d.dueDate)}`,
+    amount: T?.action ? 0 : d.weekly,
     createdAt: user.simDate,
     dueDate: d.dueDate,
     status: 'open',
-    goal: `Quỹ dự phòng ${d.targetMonths} tháng`,
+    goal: T ? T.goalName(d) : `Quỹ dự phòng ${d.targetMonths} tháng`,
     targetMonths: d.targetMonths,
     sessionId: s.id,
     score: d.score ?? null,
@@ -413,9 +546,9 @@ async function commit(user, a, logs) {
   user.commitments.unshift(c);
   const remindAt = addDays(c.dueDate, -1);
   user.reminders.unshift({ id: uid('r'), date: remindAt, text: `Nhắc cam kết: ${c.text}`, commitmentId: c.id, fired: false });
-  const goalName = `Quỹ dự phòng ${d.targetMonths} tháng`;
+  const goalName = T ? T.goalName(d) : `Quỹ dự phòng ${d.targetMonths} tháng`;
   if (!user.goals.find((g) => g.name === goalName)) {
-    user.goals.unshift({ id: uid('g'), name: goalName, kind: 'emergency', targetMonths: d.targetMonths, createdAt: user.simDate });
+    user.goals.unshift({ id: uid('g'), name: goalName, kind: s.topic, targetMonths: d.targetMonths, createdAt: user.simDate });
   }
   user.sessions.unshift({ id: s.id, topic: s.topic, startedAt: s.startedAt, endedAt: user.simDate, targetMonths: d.targetMonths, stage: d.stage, score: d.score, confidence: d.confidence, reality: d.obstacle, commitmentId: c.id });
   const extraFacts = [
@@ -432,6 +565,16 @@ async function commit(user, a, logs) {
 
 // ----- OSKAR Review đầu phiên sau -----
 async function reviewDone(user, a, logs, c) {
+  if (c.topic && c.topic !== 'emergency') {
+    await step(user, a, logs, {
+      step: 'RVD', intent: 'OSKAR Review: ghi nhận cụ thể việc đã làm, hỏi điều gì đã giúp làm được (củng cố know-how), không khen chung chung',
+      question: 'Điều gì đã giúp anh làm được lần này?',
+      factIds: ['c_text'], extraFacts: prevCommitFacts(user, c),
+      template: 'Anh đã giữ lời "{{c_text}}". Điều gì đã giúp anh làm được lần này?',
+      chips: [{ label: 'Kế hoạch nếu-thì đã phát huy', value: 'Kế hoạch nếu-thì đã phát huy' }, { label: 'Làm ngay khi nhớ ra', value: 'Làm ngay khi nhớ ra' }, { label: 'Được nhắc đúng lúc', value: 'Được nhắc đúng lúc' }],
+    });
+    return;
+  }
   await step(user, a, logs, {
     step: 'RVD', intent: 'OSKAR Review: ghi nhận cụ thể việc đã làm bằng số engine, hỏi điều gì đã giúp làm được (củng cố know-how), không khen chung chung',
     question: 'Điều gì đã giúp anh làm được lần này?',
@@ -540,7 +683,7 @@ export async function startSession(user) {
   }
   const c = reviewTarget(user);
   if (c) {
-    newSession(user, { commitmentId: c.id, targetMonths: c.targetMonths || 3, prevScore: c.score ?? null, knowhow: c.knowhow || null, stage: c.stage || 'action', review: true });
+    newSession(user, { commitmentId: c.id, targetMonths: c.targetMonths || 3, prevScore: c.score ?? null, knowhow: c.knowhow || null, stage: c.stage || 'action', review: true }, c.topic || 'emergency');
     if (c.status === 'open') {
       await step(user, a, logs, {
         step: 'RV1', intent: 'OSKAR Review, trách nhiệm giải trình: mở phiên bằng việc nhìn lại cam kết cũ, hỏi thẳng đã làm chưa, không khen suông',
@@ -554,10 +697,8 @@ export async function startSession(user) {
     } else {
       await reviewMissed(user, a, logs, c);
     }
-  } else if (a.fin.ef.months < THRESHOLDS.emergencyTargetMonths) {
-    await askStage(user, a, logs);
   } else {
-    await okMessage(user, a, logs);
+    await financialOverview(user, a, logs);
   }
   logs.push({ agent: 'Agent chính', action: 'start', step: user.session?.step || 'none' });
   pushTrace(user, logs);
@@ -588,7 +729,24 @@ export async function reply(user, { text = '', value }) {
   if (text || value) userMsg(user, text || answer);
   let { a, logs: pl } = await pipeline(user);
   logs.push(...pl);
+  if (typeof value === 'string' && value.startsWith('focus:')) {
+    await startTopic(user, a, logs, value.slice(6));
+    logs.push({ agent: 'Agent chính', action: 'focus', topic: value.slice(6) });
+    pushTrace(user, logs);
+    save();
+    return;
+  }
   const s = user.session;
+  if (!s && user.pendingFocus?.length && !value) {
+    const k = matchTopic(answer, detectIssues(a));
+    if (k) {
+      await startTopic(user, a, logs, k);
+      logs.push({ agent: 'Agent chính', action: 'focus', topic: k });
+      pushTrace(user, logs);
+      save();
+      return;
+    }
+  }
   if (!s) {
     if (value === undefined || value === null || value === '') {
       await answerFreeform(user, a, logs, answer);
@@ -604,7 +762,8 @@ export async function reply(user, { text = '', value }) {
   const d = s.data;
   if ((value === undefined || value === null || value === '') && isQuestion(answer) && s.lastQuestion) {
     // Người dùng hỏi lại trong phiên: giải thích bước hiện tại rồi hỏi lại đúng câu đó
-    const help = STEP_HELP[s.step] || 'Mình hỏi để hiểu anh hơn, anh cứ trả lời theo cảm nhận thật là được.';
+    const TOPIC_HELP = { G: 'Mình hỏi đích đến trước, vì mọi bước sau đều bám vào điều anh thật sự muốn.', O: 'Đây là các phương án engine đã tính sẵn từ dữ liệu của anh. Hãy chọn cách anh chắc làm được, không cần chọn mức cao nhất.' };
+    const help = (topicOf(user) && TOPIC_HELP[s.step]) || STEP_HELP[s.step] || 'Mình hỏi để hiểu anh hơn, anh cứ trả lời theo cảm nhận thật là được.';
     await compose(user, a, {
       step: s.step, userAnswer: answer, input: true,
       intent: `Người dùng chưa hiểu câu hỏi ở bước ${s.step}. Giải thích ngắn vì sao hỏi và nên trả lời thế nào, rồi hỏi lại đúng ý câu cũ`,
@@ -628,7 +787,7 @@ export async function reply(user, { text = '', value }) {
       if (done) {
         c.status = 'done';
         c.doneAt = user.simDate;
-        user.overrides.emergencyFund = a.snap.emergencyFundBalance + c.amount;
+        if (!c.topic || c.topic === 'emergency') user.overrides.emergencyFund = a.snap.emergencyFundBalance + c.amount;
         ({ a } = await pipeline(user));
         await reviewDone(user, a, logs, c);
         await evaluateEvents(user, a, logs);
@@ -644,9 +803,9 @@ export async function reply(user, { text = '', value }) {
       c.reviewed = true;
       c.reviewNote = answer;
       d.knowhow = answer;
-      if (a.fin.ef.months >= THRESHOLDS.emergencyTargetMonths) {
+      if (topicOf(user) || a.fin.ef.months >= THRESHOLDS.emergencyTargetMonths) {
         user.session = null;
-        await okMessage(user, a, logs);
+        await financialOverview(user, a, logs, { head: 'Giờ mình cùng nhìn lại bức tranh chung' });
       } else {
         await askScaling(user, a, logs, answer);
       }
@@ -701,7 +860,8 @@ export async function reply(user, { text = '', value }) {
       }
       break;
     case 'G':
-      d.targetMonths = parseMonths(answer, value);
+      if (topicOf(user)) topicOf(user).parseGoal(d, answer, value, a, parseMoney);
+      else d.targetMonths = parseMonths(answer, value);
       d.goalText = answer;
       await askScaling(user, a, logs, answer);
       break;
@@ -718,6 +878,7 @@ export async function reply(user, { text = '', value }) {
       await askOptions(user, a, logs, answer);
       break;
     case 'O': {
+      if (topicOf(user)?.action) { d.actionText = answer; await askOutcome(user, a, logs, answer); break; }
       const opts = d.options || [];
       const idx = answer.match(/^\s*([1-3])\s*$/) || answer.match(/(?:phương án|phuong an|mức|muc|pa)\s*([1-3])\b/i);
       d.weekly = idx ? opts[Number(idx[1]) - 1] : parseMoney(answer) || opts[0];
@@ -740,7 +901,7 @@ export async function reply(user, { text = '', value }) {
       const n = parseScore(answer, value);
       if (n === null) { await reask(); break; }
       d.confidence = n;
-      if (n < 7 && d.weekly > 200000) { d.weekly = lower(d.weekly); d.lowered = true; }
+      if (n < 7 && d.weekly > 200000 && !topicOf(user)?.action) { d.weekly = lower(d.weekly); d.lowered = true; }
       await proposeWill(user, a, logs, answer);
       break;
     }
@@ -778,11 +939,15 @@ export async function onDataChange(user, reason) {
       template: 'Nhắc hẹn: {{rm_text}}.',
     }, logs);
   }
-  if (['data-change', 'dataset-change', 'valo-import'].includes(reason)) await announceNewData(user, a, logs, reason);
+  const dataReason = ['data-change', 'dataset-change', 'valo-import'].includes(reason);
+  if (dataReason) await announceNewData(user, a, logs, reason);
   user.lastDigest = digest(a);
   const before = user.chat.length;
-  await evaluateEvents(user, a, logs, { reason });
+  // Dữ liệu mới (hoặc lần mở đầu) khi không có phiên dở: tổng kết + liệt kê điểm cần cải thiện thay cho từng cảnh báo lẻ
+  const overview = (dataReason || reason === 'first-open') && !user.session;
+  await evaluateEvents(user, a, logs, { reason, silent: overview ? ['ef_low', 'spend_over', 'bhxh_gap', 'retire_wait'] : [] });
   await maybeSummary(user, a, logs);
+  if (overview) await financialOverview(user, a, logs);
   await resumeAfterDataChange(user, a, logs, before);
   pushTrace(user, logs);
   save();

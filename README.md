@@ -67,6 +67,20 @@ Muốn bật AI, sao chép `.env.example` thành `.env` và điền `META_API_KE
 2. Agent Kiểm chứng bỏ placeholder ra rồi quét văn bản: còn chữ số, còn từ chỉ số như "triệu", "tỷ", "phần trăm", hoặc có mã fact không tồn tại thì **chặn cả bản nháp** và thay bằng lời dẫn mẫu.
 3. Giao diện thay mã bằng giá trị engine, hiện dạng chip xanh. Rê chuột vào chip để xem công thức, nguồn, ngày dữ liệu. Mỗi tin có nhãn "Nhận định của AI · Muse Spark" hoặc "Lời dẫn mẫu", tách bạch với bảng "Số tính được bởi engine".
 
+## Tổng kết và chọn việc cần xử lý
+
+Mỗi lần mở app, cập nhật dữ liệu hay bấm "Bắt đầu", Agent chính gửi một bản tổng kết theo dữ liệu mới nhất (thu nhập, chi tiêu, dòng tiền dư, quỹ dự phòng, tài sản ròng, lương hưu dự kiến). Sau đó Agent Phân tích liệt kê tối đa bốn điểm cần cải thiện, xếp theo mức độ (`src/agents/topics.js`, hoàn toàn xác định, không dùng LLM):
+
+| Chủ đề | Khi nào xuất hiện | Phương án engine tính |
+|---|---|---|
+| Xây quỹ dự phòng | Quỹ dưới mức khuyến nghị | Mức để riêng mỗi tuần và số tháng để đủ |
+| Kiểm soát chi tiêu | Tháng gần nhất vượt ngân sách | Mức bớt mỗi tuần và số tiền để dành thêm mỗi tháng |
+| Xử lý tháng BHXH bị thiếu | Lịch sử đóng có tháng trống | Ba việc cụ thể để làm rõ |
+| Đẩy nhanh mục tiêu | Mục tiêu chưa có khoản góp hoặc còn quá lâu | Mức góp thêm mỗi tuần và thời gian hoàn thành |
+| Chuẩn bị cho giai đoạn nghỉ sớm | Tuổi nghỉ dự định sớm hơn tuổi luật | Mức để dành mỗi tuần và phần khoảng trống lo được |
+
+Người dùng chọn một điểm (bấm nút hoặc gõ, ví dụ "xử lý BHXH trước"). Phiên coaching chạy trên đúng chủ đề đó, bước nào cũng kết thúc bằng câu hỏi: mức sẵn sàng (MI nếu còn lưỡng lự), đích đến, thực tế và tự chấm, kinh nghiệm từng làm được, phương án, WOOP, độ tự tin, rồi chốt cam kết có hạn. Phiên sau mở đầu bằng phần nhìn lại cam kết của chủ đề đó.
+
 ## Khung khai vấn
 
 GROW là khung mặc định, có thêm ba lớp, mỗi tin coach chỉ hỏi một câu:
