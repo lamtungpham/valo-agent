@@ -228,7 +228,7 @@ $('#chips').addEventListener('click', (e) => {
   if (v.startsWith('ds:')) { act('/dataset', { dataset: v.slice(3) }); return; }
   if (v.startsWith('ui:')) { document.querySelector(`[data-tab=${v.slice(3)}]`)?.click(); return; }
   if (v.startsWith('tool:')) { document.querySelector('[data-tab=tools]')?.click(); document.querySelector(`[data-tool=${v.slice(5)}]`)?.click(); return; }
-  act('/coach/reply', { value: v, text: b.dataset.l });
+  act('/coach/reply', { value: v, text: b.textContent.trim() || b.dataset.l });
 });
 $('#composer').addEventListener('submit', (e) => {
   e.preventDefault();
