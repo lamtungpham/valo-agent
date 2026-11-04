@@ -1,0 +1,115 @@
+{
+  "_label": "DỮ LIỆU HƯ CẤU — nhân vật 'Mr. Sample' dùng cho demo, không phải người thật, không lấy từ dữ liệu thật nào. BỘ TEST 2: giống hệt bộ 1 nhưng thiếu 3 tháng 03, 04, 05/2022.",
+  "fictional": true,
+  "asOf": "2026-10-31",
+  "profile": {
+    "id": "mr-sample",
+    "name": "Mr. Sample",
+    "gender": "male",
+    "birthYM": "1995-05",
+    "age": 31,
+    "plannedRetirementAge": 58,
+    "retireMonthlySpend": 12000000,
+    "riskProfile": "cân bằng"
+  },
+  "monthlyIncome": 18000000,
+  "budget": 12000000,
+  "monthlySpending": [
+    {
+      "month": "08/2026",
+      "amount": 11800000
+    },
+    {
+      "month": "09/2026",
+      "amount": 12100000
+    },
+    {
+      "month": "10/2026",
+      "amount": 13600000
+    }
+  ],
+  "accounts": [
+    {
+      "id": "acc-ef",
+      "name": "Quỹ dự phòng",
+      "type": "cash",
+      "assetClass": "Tiền mặt",
+      "balance": 20000000,
+      "isEmergencyFund": true
+    },
+    {
+      "id": "acc-pay",
+      "name": "Tài khoản lương",
+      "type": "cash",
+      "assetClass": "Tiền mặt",
+      "balance": 6000000
+    },
+    {
+      "id": "acc-dep",
+      "name": "Tiết kiệm mua nhà",
+      "type": "deposit",
+      "assetClass": "Tiền gửi",
+      "balance": 60000000
+    },
+    {
+      "id": "acc-stk",
+      "name": "Chứng chỉ quỹ cổ phiếu",
+      "type": "investment",
+      "assetClass": "Cổ phiếu/quỹ",
+      "balance": 30000000
+    },
+    {
+      "id": "acc-gold",
+      "name": "Vàng",
+      "type": "investment",
+      "assetClass": "Vàng",
+      "balance": 15000000
+    },
+    {
+      "id": "acc-cc",
+      "name": "Thẻ tín dụng",
+      "type": "debt",
+      "assetClass": "Nợ",
+      "balance": -4000000
+    }
+  ],
+  "goals": [
+    {
+      "id": "house",
+      "name": "Mua nhà (khoản trả trước)",
+      "target": 800000000,
+      "current": 60000000,
+      "monthly": 5000000
+    }
+  ],
+  "socialInsurance": {
+    "periods": [
+      {
+        "from": "2018-01",
+        "to": "2020-12",
+        "salary": 10000000
+      },
+      {
+        "from": "2021-01",
+        "to": "2022-02",
+        "salary": 15000000
+      },
+      {
+        "from": "2022-06",
+        "to": "2023-12",
+        "salary": 15000000
+      },
+      {
+        "from": "2024-01",
+        "to": "2026-10",
+        "salary": 20000000
+      }
+    ],
+    "projection": {
+      "salary": 20000000,
+      "untilAge": 58
+    },
+    "nextDueDate": "2026-11-30",
+    "payer": "Doanh nghiệp đóng hộ hằng tháng"
+  }
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Valo Agent</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">V</span>
+      <div>
+        <div class="title">Valo Agent</div>
+        <div class="sub">Coach tài chính cá nhân · GROW · số liệu do engine tính</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <span id="dataBadge" class="badge warn">DỮ LIỆU HƯ CẤU</span>
+      <span id="aiBadge" class="badge"></span>
+      <span class="badge neutral">Hôm nay (mô phỏng): <b id="simDate"></b></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="chat-col">
+      <div class="chat-head">
+        <div>
+          <b>Phiên coaching</b>
+          <span id="stepBadge" class="grow"></span>
+        </div>
+        <button id="btnStart" class="btn primary">Bắt đầu / tiếp tục phiên</button>
+      </div>
+      <div id="chat" class="chat"></div>
+      <div id="typing" class="typing" hidden>Các agent đang làm việc…</div>
+      <div id="chips" class="chips"></div>
+      <form id="composer" class="composer">
+        <input id="msg" autocomplete="off" placeholder="Trả lời coach bằng lời của anh…" />
+        <button class="btn primary" type="submit">Gửi</button>
+      </form>
+    </section>
+
+    <section class="side-col">
+      <nav class="tabs" id="tabs">
+        <button data-tab="overview" class="active">Tổng quan</button>
+        <button data-tab="bhxh">BHXH</button>
+        <button data-tab="commit">Cam kết</button>
+        <button data-tab="tools">Công cụ</button>
+        <button data-tab="data">Dữ liệu</button>
+        <button data-tab="agents">Agent</button>
+        <button data-tab="onboard">Chưa dùng Valo</button>
+      </nav>
+      <div class="tab-body">
+        <div id="tab-overview" class="tab active"></div>
+        <div id="tab-bhxh" class="tab"></div>
+        <div id="tab-commit" class="tab"></div>
+        <div id="tab-tools" class="tab"></div>
+        <div id="tab-data" class="tab"></div>
+        <div id="tab-agents" class="tab"></div>
+        <div id="tab-onboard" class="tab"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="pop" class="pop" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
