@@ -12,6 +12,7 @@ import { adapterStatus } from './src/adapters/index.js';
 import { runTool } from './src/agents/tools.js';
 import * as onboarding from './src/agents/onboarding.js';
 import { mapValoContext } from './src/adapters/valoContextMapper.js';
+import { progress } from './src/progress.js';
 
 // Nạp .env nếu có (không bắt buộc), không ghi đè biến đã đặt sẵn
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -28,6 +29,8 @@ const PUBLIC = join(ROOT, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.avif': 'image/avif', '.json': 'application/json' };
 
 const json = (res, code, body) => {
+  // Chế độ luồng: các dòng tiến trình đã gửi trước, dòng cuối là kết quả
+  if (res.__stream) { res.end(JSON.stringify({ type: 'done', code, body }) + '\n'); return; }
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(body));
 };
@@ -55,6 +58,18 @@ function userId(req, res) {
 async function api(req, res, path) {
   const uid = userId(req, res);
   const user = getUser(uid);
+  // Client xin luồng tiến trình (NDJSON): báo từng agent khi nó bắt đầu chạy
+  if (String(req.headers.accept || '').includes('application/x-ndjson')) {
+    res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+    res.__stream = true;
+    const send = (agent, detail) => res.write(JSON.stringify({ type: 'stage', agent, detail, at: Date.now() }) + '\n');
+    send('Agent chính', 'nhận yêu cầu, điều phối');
+    return progress.run(send, () => route(req, res, path, user, uid));
+  }
+  return route(req, res, path, user, uid);
+}
+
+async function route(req, res, path, user, uid) {
   const body = req.method === 'POST' ? await readBody(req) : {};
   const state = async () => json(res, 200, await viewState(user, ext()));
 

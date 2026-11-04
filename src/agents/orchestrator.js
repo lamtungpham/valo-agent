@@ -10,6 +10,8 @@ import { verify } from './verifier.js';
 import { fact } from '../engine/facts.js';
 import { stateAtAge } from '../engine/bhxh.js';
 import { save, uid, START_DATE } from '../store.js';
+import { emit, progress } from '../progress.js';
+import { museEnabled } from '../llm/muse.js';
 import { goalFactId, THRESHOLDS, shockJobLoss } from '../engine/finance.js';
 import { detectIssues, matchTopic, TOPICS, knowhowChips } from './topics.js';
 
@@ -21,7 +23,9 @@ function pushTrace(user, entries) {
 }
 
 export async function pipeline(user) {
+  emit('Thu thập', 'đang đọc dữ liệu');
   const { snapshot, log: cLog } = await collect(user);
+  emit('Phân tích', 'đang chạy engine');
   const a = analyze(snapshot, user);
   return { a, logs: [cLog, a.log] };
 }
@@ -41,7 +45,9 @@ function commitmentFacts(user, c) {
 async function compose(user, a, { kind = 'coach', step, intent, question, factIds = [], extraFacts = [], userAnswer, template, chips = [], input = false, extra }, logs) {
   const factMap = { ...a.factMap };
   for (const f of extraFacts) factMap[f.id] = f;
+  emit('Coach', museEnabled() ? 'Muse Spark đang viết' : 'đang soạn lời dẫn mẫu');
   const d = await draft({ intent, question, factIds, factMap, userAnswer, extra, template });
+  emit('Kiểm chứng', 'đang soát từng con số');
   const v = verify(d, factMap, { question, factIds });
   logs.push({ agent: 'Coach', action: step || kind, mode: d.mode, note: d.error || 'Muse Spark' });
   logs.push({ agent: 'Kiểm chứng', action: 'verify', passed: v.verification.passed, checks: v.verification.checks.map((c) => c.msg) });
@@ -51,6 +57,7 @@ async function compose(user, a, { kind = 'coach', step, intent, question, factId
     verification: v.verification, chips, input, date: user.simDate, createdAt: new Date().toISOString(),
   };
   user.chat.push(msg);
+  emit('Agent chính', 'nhận tin đã kiểm chứng, quyết định bước tiếp');
   return msg;
 }
 
@@ -1033,12 +1040,13 @@ export async function markCommitment(user, id, status) {
 
 // ---------- Trạng thái cho giao diện ----------
 export async function viewState(user, extras = {}) {
-  const { a } = await pipeline(user);
+  // dựng màn hình không phải một lượt agent: không báo lên sơ đồ
+  const { a } = await progress.exit(() => pipeline(user));
   const p = a.proj;
   const timeline = [];
   for (let age = 31; age <= 85; age++) timeline.push(stateAtAge(p, age, a.snap.profile.retireMonthlySpend));
   return {
-    user: { id: user.id, dataset: user.dataset, simDate: user.simDate, simDateText: fmtDate(user.simDate) },
+    user: { id: user.id, dataset: user.dataset, hasValoImport: Boolean(user.valoImport?.ctx), simDate: user.simDate, simDateText: fmtDate(user.simDate) },
     data: { meta: a.snap.meta, asOf: fmtDate(a.snap.asOf), profile: a.snap.profile, edited: a.snap.edited, accounts: a.snap.accounts, goals: a.fin.goals, monthlyExpense: a.monthlyExpense, surplus: a.surplus },
     facts: a.factMap,
     events: a.events,
