@@ -717,7 +717,7 @@ export async function reply(user, { text = '', value }) {
       break;
     case 'O': {
       const opts = d.options || [];
-      const idx = answer.match(/^(?:phương án\s*)?([1-3])$/i);
+      const idx = answer.match(/^\s*([1-3])\s*$/) || answer.match(/(?:phương án|phuong an|mức|muc|pa)\s*([1-3])\b/i);
       d.weekly = idx ? opts[Number(idx[1]) - 1] : parseMoney(answer) || opts[0];
       await askOutcome(user, a, logs, answer);
       break;
@@ -776,10 +776,36 @@ export async function onDataChange(user, reason) {
       template: 'Nhắc hẹn: {{rm_text}}.',
     }, logs);
   }
+  const before = user.chat.length;
   await evaluateEvents(user, a, logs, { reason });
   await maybeSummary(user, a, logs);
+  await resumeAfterDataChange(user, a, logs, before);
   pushTrace(user, logs);
   save();
+}
+
+/** Đang coach dở mà dữ liệu đổi: báo rõ số đã tính lại, rồi hỏi lại đúng câu đang dở để phiên không bị đứt. */
+async function resumeAfterDataChange(user, a, logs, before) {
+  const s = user.session;
+  if (!s || !s.lastQuestion) return;
+  const reached = Boolean(s.data.targetMonths && a.fin.ef.months >= s.data.targetMonths);
+  const newlyReached = reached && !s.reachedNoted;
+  if (user.chat.length === before && !newlyReached) return;
+  if (reached) s.reachedNoted = true;
+  const asOf = fmtDate(a.snap.asOf);
+  const extraFacts = [...sessionFacts(user, s)];
+  if (s.data.targetMonths) extraFacts.push(fact('s_target_months', { label: 'Mục tiêu quỹ trong phiên', value: s.data.targetMonths, unit: 'months', formula: 'Người dùng chọn ở bước Mục tiêu', source: 'Phiên coaching', asOf }));
+  const tail = reached
+    ? 'Theo dữ liệu mới, quỹ đã đủ {{ef_months}} chi tiêu, chạm mục tiêu {{s_target_months}} anh đặt trong phiên. Anh có thể chốt phiên ở mức nhỏ để giữ thói quen, hoặc bấm "Bắt đầu / tiếp tục phiên" sau để bàn mục tiêu khác. '
+    : 'Các con số ở bước tiếp theo sẽ tính theo dữ liệu mới. ';
+  await compose(user, a, {
+    step: s.step, input: true,
+    intent: 'Dữ liệu vừa cập nhật giữa phiên coaching: báo ngắn rằng số đã được tính lại, rồi hỏi lại đúng câu đang dở',
+    question: s.lastQuestion, factIds: ['ef_months'], extraFacts,
+    template: `Dữ liệu vừa cập nhật, mình vẫn giữ phiên đang dở. ${tail}Mình hỏi lại câu lúc nãy nhé: ${s.lastQuestion}`,
+    chips: s.lastChips || [],
+  }, logs);
+  logs.push({ agent: 'Agent chính', action: 'resume-after-data', step: s.step, reached: Boolean(reached) });
 }
 
 export async function markCommitment(user, id, status) {
