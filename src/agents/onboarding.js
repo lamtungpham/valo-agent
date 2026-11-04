@@ -1,11 +1,6 @@
-// Nhánh CHƯA dùng Valo: hỏi 13 câu coaching có cấu trúc, mỗi câu lấp một ô mô hình tài chính.
+// Nhánh CHƯA dùng Valo: hỏi 13 câu ngay trong khung chat coaching chính, mỗi câu lấp một ô dữ liệu.
 // Bắt đầu từ điều khiến người dùng chưa yên tâm nhất, rồi mới tới con số. Mỗi tin chỉ một câu hỏi.
-// Kết thúc: engine dựng "bản đồ tài chính" + hồ sơ tạm, mời nối Valo.
-import { draft } from './coach.js';
-import { verify } from './verifier.js';
-import { fact, toMap } from '../engine/facts.js';
-import { THRESHOLDS, monthsToReach } from '../engine/finance.js';
-import { save, uid } from '../store.js';
+// Khai xong: lời khai được dựng thành snapshot chuẩn (cùng dạng dữ liệu Valo) để mọi mục khác dùng chung.
 
 export const QUESTIONS = [
   { slot: 'worry', type: 'text', q: 'Điều gì về tiền bạc đang khiến bạn chưa yên tâm nhất lúc này?', chips: ['Không có khoản dự phòng', 'Nợ thẻ, nợ vay', 'Không biết tiền đi đâu hết', 'Lo chuyện về già'] },
@@ -15,7 +10,7 @@ export const QUESTIONS = [
   { slot: 'goal_years', type: 'number', q: 'Bạn muốn đạt mục tiêu đó trong bao nhiêu năm?', chips: ['1', '3', '5', '10'] },
   { slot: 'income', type: 'money', q: 'Giờ tôi nhìn vào dòng tiền: mỗi tháng bạn thực nhận khoảng bao nhiêu?' },
   { slot: 'expense', type: 'money', q: 'Một tháng bình thường bạn chi tiêu khoảng bao nhiêu, chưa tính trả nợ?' },
-  { slot: 'debt', type: 'money', q: 'Hiện bạn có khoản nợ nào không? Tổng dư nợ khoảng bao nhiêu (không có thì gõ 0)?', chips: ['0'] },
+  { slot: 'debt', type: 'money', q: 'Hiện bạn có khoản nợ nào không? Tổng dư nợ khoảng bao nhiêu (không có thì gõ “không”)?', chips: ['0'] },
   { slot: 'debt_payment', type: 'money', q: 'Mỗi tháng bạn trả nợ khoảng bao nhiêu?', skipIf: (a) => !a.debt },
   { slot: 'emergency', type: 'money', q: 'Bạn có khoản tiền để riêng cho tình huống khẩn cấp không? Khoảng bao nhiêu?', chips: ['0'] },
   { slot: 'savings', type: 'money', q: 'Ngoài khoản đó, tiết kiệm và đầu tư khác của bạn tổng cộng khoảng bao nhiêu?', chips: ['0'] },
@@ -40,131 +35,50 @@ export function parseMoney(text) {
   return Math.round(n);
 }
 
-function parseAnswer(q, text) {
+export function parseAnswer(q, text) {
   if (q.type === 'money') return parseMoney(text);
   if (q.type === 'number') { const m = String(text).match(/\d+/); return m ? Number(m[0]) : null; }
   if (q.type === 'choice') return String(text).slice(0, 80);
   return String(text).trim().slice(0, 300);
 }
 
-function nextIndex(o, from) {
+export function nextIndex(o, from) {
   let i = from;
   while (i < QUESTIONS.length && QUESTIONS[i].skipIf?.(o.answers)) i++;
   return i;
 }
 
-async function say(o, { intent, question, userAnswer, template, facts = [] }) {
-  const factMap = toMap(facts);
-  const d = await draft({ intent, question, factIds: facts.map((f) => f.id), factMap, userAnswer, template });
-  const v = verify(d, factMap, { question, factIds: facts.map((f) => f.id) });
-  o.messages.push({ id: uid('om'), role: 'agent', ...v });
-}
 
-export async function start(user) {
-  user.onboarding = { active: true, idx: 0, answers: {}, messages: [], done: false, startedAt: user.simDate };
-  const o = user.onboarding;
-  await say(o, {
-    intent: 'Mở đầu phiên làm quen cho người chưa dùng Valo: chào ngắn, nói sẽ hỏi từng câu một, bắt đầu từ nỗi lo chứ chưa hỏi số',
-    question: QUESTIONS[0].q,
-    template: `Chào bạn, tôi là Valo Agent. Tôi sẽ hỏi từng câu một, bắt đầu từ điều bạn đang bận lòng trước rồi mới tới con số. ${QUESTIONS[0].q}`,
-  });
-  save();
-}
+export const INPUT_HINT = { money: 'Ví dụ: 15 triệu, 500k, 20.000.000', number: 'Nhập một con số', text: 'Trả lời bằng lời của bạn', choice: 'Chọn một ý hoặc tự gõ' };
 
-export async function answer(user, { text = '' }) {
-  const o = user.onboarding;
-  if (!o?.active || o.done) return;
-  const q = QUESTIONS[o.idx];
-  const val = parseAnswer(q, text);
-  o.messages.push({ id: uid('om'), role: 'user', text: String(text).slice(0, 300) });
-  if (val === null || val === '') {
-    await say(o, { intent: 'Người dùng trả lời chưa rõ con số, nhờ nói lại nhẹ nhàng', question: q.q, template: `Tôi chưa đọc được con số trong câu trả lời. ${q.q}` });
-    save();
-    return;
-  }
-  o.answers[q.slot] = val;
-  o.idx = nextIndex(o, o.idx + 1);
-  if (o.idx >= QUESTIONS.length) {
-    o.done = true;
-    o.profile = buildMap(o.answers, user.simDate);
-    const f = o.profile.facts;
-    await say(o, {
-      intent: 'Kết thúc phiên làm quen: tóm tắt bản đồ tài chính bằng số engine, nhắc lại nỗi lo ban đầu, mời nối Valo để số liệu tự cập nhật',
-      userAnswer: o.answers.worry,
-      facts: f.filter((x) => ['ob_ef_months', 'ob_surplus', 'ob_goal_need', 'ob_goal_gap'].includes(x.id)),
-      template: 'Cảm ơn bạn. Bản đồ tài chính tạm đã sẵn sàng: quỹ khẩn cấp đủ {{ob_ef_months}}, mỗi tháng dư {{ob_surplus}}, mục tiêu cần để dành {{ob_goal_need}} mỗi tháng, chênh so với khả năng là {{ob_goal_gap}}. Đây mới là hồ sơ tạm từ lời khai; nối Valo để số liệu tự cập nhật nhé.',
-    });
-  } else {
-    const nq = QUESTIONS[o.idx];
-    await say(o, {
-      intent: `Phiên làm quen, câu ${o.idx + 1}: ghi nhận ngắn câu trả lời vừa rồi (không nhắc lại con số) rồi hỏi câu tiếp theo`,
-      question: nq.q, userAnswer: text,
-      template: `${o.idx <= 2 ? 'Tôi hiểu, cảm ơn bạn đã chia sẻ.' : 'Tôi ghi nhận.'} ${nq.q}`,
-    });
-  }
-  save();
-}
-
-/** Engine dựng bản đồ tài chính từ lời khai (số xác định, không LLM). */
-export function buildMap(a, simDate) {
-  const asOf = simDate.split('-').reverse().join('/');
-  const src = 'Lời khai trong phiên làm quen (hồ sơ tạm)';
+/** Lời khai → snapshot chuẩn hoá (như dữ liệu Valo), để Tổng quan, Công cụ, Cam kết, coaching dùng chung. */
+export function selfReportSnapshot(sr) {
+  const a = sr.answers || {};
+  const asOf = sr.at;
   const income = a.income || 0;
-  const expense = a.expense || 0;
   const debtPay = a.debt_payment || 0;
-  const surplus = income - expense - debtPay;
-  const efMonths = expense > 0 ? (a.emergency || 0) / expense : 0;
-  const goalMonths = (a.goal_years || 1) * 12;
-  const remaining = Math.max(0, (a.goal_amount || 0) - (a.savings || 0));
-  const goalNeed = remaining / goalMonths;
-  const atSurplus = monthsToReach(remaining, surplus);
-  const F = (id, o) => fact(id, { source: src, asOf, ...o });
-  const facts = [
-    F('ob_income', { label: 'Thu nhập thực nhận/tháng', value: income, unit: 'vnd', formula: 'Lời khai' }),
-    F('ob_expense', { label: 'Chi tiêu/tháng', value: expense, unit: 'vnd', formula: 'Lời khai' }),
-    F('ob_debt_pay', { label: 'Trả nợ/tháng', value: debtPay, unit: 'vnd', formula: 'Lời khai' }),
-    F('ob_surplus', { label: 'Dòng tiền dư/tháng', value: surplus, unit: 'vnd', formula: 'Thu nhập − chi tiêu − trả nợ', source: 'Engine' }),
-    F('ob_saving_rate', { label: 'Tỷ lệ để dành', value: income ? (surplus / income) * 100 : 0, unit: 'percent', formula: 'Dòng tiền dư ÷ thu nhập × 100', source: 'Engine' }),
-    F('ob_dti', { label: 'Tỷ lệ trả nợ trên thu nhập', value: income ? (debtPay / income) * 100 : 0, unit: 'percent', formula: 'Trả nợ tháng ÷ thu nhập × 100', source: 'Engine' }),
-    F('ob_ef', { label: 'Quỹ khẩn cấp', value: a.emergency || 0, unit: 'vnd', formula: 'Lời khai' }),
-    F('ob_ef_months', { label: 'Quỹ khẩn cấp đủ dùng', value: efMonths, unit: 'months', formula: 'Quỹ khẩn cấp ÷ chi tiêu tháng', source: 'Engine' }),
-    F('ob_debt', { label: 'Tổng dư nợ', value: a.debt || 0, unit: 'vnd', formula: 'Lời khai' }),
-    F('ob_assets', { label: 'Tài sản tài chính', value: (a.emergency || 0) + (a.savings || 0), unit: 'vnd', formula: 'Quỹ khẩn cấp + tiết kiệm, đầu tư', source: 'Engine' }),
-    F('ob_net', { label: 'Tài sản ròng tài chính', value: (a.emergency || 0) + (a.savings || 0) - (a.debt || 0), unit: 'vnd', formula: 'Tài sản tài chính − dư nợ', source: 'Engine' }),
-    F('ob_goal', { label: `Mục tiêu "${a.goal_name || 'chính'}"`, value: a.goal_amount || 0, unit: 'vnd', formula: 'Lời khai' }),
-    F('ob_goal_need', { label: 'Cần để dành mỗi tháng cho mục tiêu', value: goalNeed, unit: 'vnd', formula: '(Mục tiêu − tiết kiệm hiện có) ÷ (số năm × 12)', source: 'Engine' }),
-    F('ob_goal_gap', { label: 'Chênh giữa cần để dành và dòng tiền dư', value: goalNeed - surplus, unit: 'vnd', formula: 'Cần để dành − dòng tiền dư (âm là dư sức)', source: 'Engine' }),
-    F('ob_goal_at_surplus', { label: 'Nếu dồn toàn bộ dòng tiền dư cho mục tiêu', value: Number.isFinite(atSurplus) ? atSurplus : null, unit: 'months', formula: 'Làm tròn lên (còn thiếu ÷ dòng tiền dư)', source: 'Engine' }),
-    F('ob_risk', { label: 'Khẩu vị rủi ro', value: RISK[a.risk] || 'chưa rõ', unit: 'text', formula: 'Phân loại theo phản ứng khi đầu tư giảm mạnh', source: 'Engine (quy tắc)' }),
-    F('ob_age', { label: 'Tuổi', value: a.age || null, unit: 'age', formula: 'Lời khai' }),
+  const spend = (a.expense || 0) + debtPay; // chi tiêu tháng tính cả trả nợ để dòng tiền dư không bị thổi phồng
+  const age = a.age || 30;
+  const surplus = Math.max(0, income - spend);
+  const accounts = [
+    { id: 'sr-ef', name: 'Quỹ khẩn cấp (tự khai)', type: 'cash', assetClass: 'Tiền mặt', balance: a.emergency || 0, isEmergencyFund: true },
   ];
-  const flags = [];
-  if (efMonths < THRESHOLDS.emergencyMinMonths) flags.push({ level: 'high', text: 'Quỹ khẩn cấp dưới ngưỡng 3 tháng chi tiêu', factId: 'ob_ef_months' });
-  if (surplus < 0) flags.push({ level: 'high', text: 'Chi nhiều hơn thu', factId: 'ob_surplus' });
-  if (income && debtPay / income > 0.4) flags.push({ level: 'high', text: 'Trả nợ vượt 40% thu nhập', factId: 'ob_dti' });
-  if (goalNeed > Math.max(0, surplus)) flags.push({ level: 'medium', text: 'Mục tiêu cần nhiều hơn dòng tiền dư hiện tại', factId: 'ob_goal_gap' });
+  if (a.savings) accounts.push({ id: 'sr-sav', name: 'Tiết kiệm, đầu tư khác (tự khai)', type: 'deposit', assetClass: 'Tiền gửi', balance: a.savings });
+  if (a.debt) accounts.push({ id: 'sr-debt', name: 'Dư nợ (tự khai)', type: 'debt', assetClass: 'Nợ', balance: -Math.abs(a.debt) });
+  const goals = a.goal_amount ? [{ id: 'self_goal', name: a.goal_name || 'Mục tiêu chính', target: a.goal_amount, current: Math.min(a.savings || 0, a.goal_amount), monthly: surplus, years: a.goal_years || null }] : [];
   return {
-    facts,
-    flags,
-    worry: a.worry,
-    worryImpact: a.worry_impact,
-    goalName: a.goal_name,
-    flow: { income, expense, debtPay, surplus },
-    balance: { emergency: a.emergency || 0, savings: a.savings || 0, debt: a.debt || 0 },
-  };
-}
-
-export function view(user) {
-  const o = user.onboarding;
-  if (!o) return { active: false, total: QUESTIONS.length, messages: [] };
-  const q = o.done ? null : QUESTIONS[o.idx];
-  return {
-    active: o.active,
-    done: o.done,
-    idx: o.idx,
-    total: QUESTIONS.length,
-    question: q ? { slot: q.slot, type: q.type, chips: q.chips || [] } : null,
-    messages: o.messages,
-    profile: o.profile || null,
+    asOf,
+    meta: { source: 'self-report', label: `Hồ sơ bạn tự khai qua trò chuyện (ngày ${asOf.split('-').reverse().join('/')})`, fictional: false },
+    profile: {
+      id: 'self-report', name: 'Bạn (tự khai)', gender: 'male', birthYM: `${Number(asOf.slice(0, 4)) - age}-01`, age,
+      plannedRetirementAge: 60, retireMonthlySpend: a.expense || 0, riskProfile: RISK[a.risk] || 'chưa rõ',
+      worry: a.worry || null, worryImpact: a.worry_impact || null,
+    },
+    monthlyIncome: income,
+    budget: spend,
+    monthlySpending: [{ month: `${asOf.slice(5, 7)}/${asOf.slice(0, 4)}`, amount: spend }],
+    accounts,
+    goals,
+    socialInsurance: { periods: [], projection: { salary: 0, untilAge: 60 }, nextDueDate: null, payer: 'Chưa có lịch sử BHXH (hồ sơ tự khai)' },
   };
 }

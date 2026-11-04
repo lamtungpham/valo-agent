@@ -4,6 +4,7 @@ import { MockValoAdapter } from './mockAdapter.js';
 import { HttpValoAdapter } from './httpAdapter.js';
 import { mapValoContext } from './valoContextMapper.js';
 import { validateSnapshot } from './valoAdapter.js';
+import { selfReportSnapshot } from '../agents/onboarding.js';
 
 let lastError = null;
 
@@ -59,8 +60,19 @@ class ImportedValoAdapter {
   }
 }
 
-export function getAdapter({ dataset, imported } = {}) {
+/** Người chưa dùng Valo: lời khai qua trò chuyện trong khung chat coaching. */
+class SelfReportAdapter {
+  constructor(sr) { this.sr = sr; }
+  describe() { return 'Hồ sơ tự khai qua trò chuyện'; }
+  async getSnapshot() {
+    if (!this.sr?.answers) return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: 'Chưa khai xong hồ sơ trong khung chat, tạm hiển thị dữ liệu mẫu Mr. Sample' }).getSnapshot();
+    return validateSnapshot(selfReportSnapshot(this.sr));
+  }
+}
+
+export function getAdapter({ dataset, imported, selfReport } = {}) {
   if (dataset === 'valo-import') return new ImportedValoAdapter(imported);
+  if (dataset === 'self-report') return new SelfReportAdapter(selfReport);
   if (dataset === 'valo') {
     if (!realConfigured()) return new MockValoAdapter({ dataset: 'mr-sample', fallbackReason: 'Chưa cấu hình VALO_API_BASE_URL hoặc VALO_CONTEXT_FILE' });
     return new FallbackAdapter(realAdapter());

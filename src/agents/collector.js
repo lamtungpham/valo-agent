@@ -11,7 +11,7 @@ function deepFreeze(o) {
 }
 
 export async function collect(user) {
-  const adapter = getAdapter({ dataset: user.dataset, imported: user.valoImport });
+  const adapter = getAdapter({ dataset: user.dataset, imported: user.valoImport, selfReport: user.selfReport });
   const snap = structuredClone(await adapter.getSnapshot(user.id));
   // Chuẩn hoá: tách quỹ dự phòng và chi tiêu trung bình (chỉ trích xuất, không suy diễn)
   const ov = user.overrides || {};

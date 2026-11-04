@@ -14,6 +14,7 @@ import { emit, progress } from '../progress.js';
 import { museEnabled } from '../llm/muse.js';
 import { goalFactId, THRESHOLDS, shockJobLoss } from '../engine/finance.js';
 import { detectIssues, matchTopic, TOPICS, knowhowChips } from './topics.js';
+import { QUESTIONS as OB_QUESTIONS, parseAnswer as obParse, nextIndex as obNext, INPUT_HINT } from './onboarding.js';
 
 const vnd = (n) => `${new Intl.NumberFormat('vi-VN').format(Math.round(n))} đ`;
 
@@ -42,7 +43,7 @@ function commitmentFacts(user, c) {
 }
 
 /** Coach soạn → Kiểm chứng soát → tạo tin nhắn hiển thị. */
-async function compose(user, a, { kind = 'coach', step, intent, question, factIds = [], extraFacts = [], userAnswer, template, chips = [], input = false, extra }, logs) {
+async function compose(user, a, { kind = 'coach', step, intent, question, factIds = [], extraFacts = [], userAnswer, template, chips = [], input = false, extra, hint }, logs) {
   const factMap = { ...a.factMap };
   for (const f of extraFacts) factMap[f.id] = f;
   emit('Coach', museEnabled() ? 'Muse Spark đang viết' : 'đang soạn lời dẫn mẫu');
@@ -54,7 +55,7 @@ async function compose(user, a, { kind = 'coach', step, intent, question, factId
   const msg = {
     id: uid('m'), role: 'agent', kind, step: step || null,
     segments: v.segments, facts: v.facts, aiMode: v.aiMode, aiError: v.aiError,
-    verification: v.verification, chips, input, date: user.simDate, createdAt: new Date().toISOString(),
+    verification: v.verification, chips, input, hint: hint || null, date: user.simDate, createdAt: new Date().toISOString(),
   };
   user.chat.push(msg);
   emit('Agent chính', 'nhận tin đã kiểm chứng, quyết định bước tiếp');
@@ -242,14 +243,15 @@ export async function financialOverview(user, a, logs, { head } = {}) {
   user.pendingFocus = issues.map((i) => i.key);
   const asOf = fmtDate(a.snap.asOf);
   const extraFacts = [fact('iss_count', { label: 'Số điểm cần cải thiện', value: issues.length, unit: 'count', formula: 'Đếm các chỉ số lệch ngưỡng (engine)', source: 'Agent Phân tích', asOf })];
-  const sumIds = ['monthly_income', 'monthly_expense', 'monthly_surplus', 'ef_months', 'net_worth', 'bhxh_pension'];
-  const summary = `${head || 'Tổng kết tình hình tài chính theo dữ liệu mới nhất'}: thu nhập ròng {{monthly_income}} mỗi tháng, chi tiêu trung bình {{monthly_expense}}, còn dư {{monthly_surplus}}; quỹ dự phòng đủ {{ef_months}} chi tiêu; tài sản ròng {{net_worth}}; lương hưu dự kiến {{bhxh_pension}} mỗi tháng.`;
+  const hasBhxh = a.snap.socialInsurance.periods.length > 0;
+  const sumIds = ['monthly_income', 'monthly_expense', 'monthly_surplus', 'ef_months', 'net_worth', ...(hasBhxh ? ['bhxh_pension'] : [])];
+  const summary = `${head || 'Tổng kết tình hình tài chính theo dữ liệu mới nhất'}: thu nhập ròng {{monthly_income}} mỗi tháng, chi tiêu trung bình {{monthly_expense}}, còn dư {{monthly_surplus}}; quỹ dự phòng đủ {{ef_months}} chi tiêu; tài sản ròng {{net_worth}}${hasBhxh ? '; lương hưu dự kiến {{bhxh_pension}} mỗi tháng' : '; chưa có lịch sử BHXH nên chưa ước được lương hưu'}.`;
   if (!issues.length) {
     await compose(user, a, {
       step: 'OVERVIEW', intent: 'Tổng kết tài chính: mọi chỉ số chính đều ổn, ghi nhận cụ thể rồi hỏi người dùng muốn hướng tới điều gì tiếp theo',
       question: 'Điều gì bạn muốn hướng tới tiếp theo?', factIds: sumIds, extraFacts,
       template: `${summary} Các chỉ số chính đều đang ở vùng an toàn. Điều gì bạn muốn hướng tới tiếp theo?`,
-      chips: [{ label: 'Tạo mục tiêu mới', value: 'ui:tools' }, { label: 'Xem trợ lý BHXH', value: 'ui:bhxh' }],
+      chips: [{ label: 'Tạo mục tiêu mới', value: 'ui:tools' }, { label: 'Xem trợ lý BHXH', value: 'ui:bhxh' }, ...noValoChip(user)],
     }, logs);
     return;
   }
@@ -260,9 +262,59 @@ export async function financialOverview(user, a, logs, { head } = {}) {
     question: 'Bạn muốn tập trung xử lý điểm nào trước?',
     factIds: [...sumIds, 'iss_count', ...issues.flatMap((i) => i.factIds)], extraFacts,
     template: `${summary} Tôi thấy {{iss_count}} điểm có thể cải thiện. ${list} Bạn muốn tập trung xử lý điểm nào trước?`,
-    chips: [...issues.map((i) => ({ label: i.label, value: `focus:${i.key}` })), { label: 'Để sau', value: 'focus:none' }],
+    chips: [...issues.map((i) => ({ label: i.label, value: `focus:${i.key}` })), { label: 'Để sau', value: 'focus:none' }, ...noValoChip(user)],
   }, logs);
   logs.push({ agent: 'Agent chính', action: 'overview', issues: issues.map((i) => i.key) });
+}
+
+
+// ----- Người chưa dùng Valo: khai hồ sơ ngay trong khung chat chính -----
+const noValoChip = (u) => (u.dataset === 'valo-import' && !u.valoImport?.ctx ? [{ label: 'Chưa dùng Valo? Trò chuyện để khai', value: 'ds:self-report' }] : []);
+export const selfReportPending = (u) => u.dataset === 'self-report' && !u.selfReport;
+
+async function askOnboard(user, a, logs, { userAnswer, retry = false, resume = false } = {}) {
+  const o = user.onboarding;
+  const q = OB_QUESTIONS[o.idx];
+  const pre = retry ? 'Tôi chưa đọc được con số trong câu trả lời, bạn nói lại giúp tôi nhé.'
+    : resume ? 'Chúng ta đang khai dở hồ sơ, tôi hỏi tiếp nhé.'
+    : o.idx === 0 ? 'Chào bạn. Vì bạn chưa dùng Valo, tôi sẽ hỏi từng câu một ngay trong khung chat này, bắt đầu từ điều bạn đang bận lòng rồi mới tới con số. Khai xong, Tổng quan, Công cụ, Cam kết và các phiên coaching đều tính theo đúng lời khai của bạn.'
+    : o.idx <= 2 ? 'Tôi hiểu, cảm ơn bạn đã chia sẻ.' : 'Tôi ghi nhận.';
+  await compose(user, a, {
+    step: 'OB', input: true, userAnswer, hint: INPUT_HINT[q.type],
+    intent: o.idx === 0 && !retry && !resume
+      ? 'Mở đầu phần khai hồ sơ cho người chưa dùng Valo: chào ngắn, nói sẽ hỏi từng câu, câu trả lời sẽ được dùng cho mọi mục của app, bắt đầu từ nỗi lo chứ chưa hỏi số'
+      : retry ? 'Người dùng trả lời chưa rõ con số, nhờ nói lại nhẹ nhàng rồi hỏi lại đúng câu'
+      : `Khai hồ sơ: ghi nhận ngắn câu trả lời vừa rồi (không nhắc lại con số, không khuyên) rồi hỏi câu tiếp theo`,
+    question: q.q,
+    template: `${pre} ${q.q}`,
+    chips: (q.chips || []).map((c) => ({ label: c, value: `ob:${c}` })),
+  }, logs);
+  logs.push({ agent: 'Agent chính', action: 'onboard-ask', idx: o.idx });
+}
+
+async function startOnboarding(user, a, logs) {
+  user.session = null;
+  user.pendingFocus = null;
+  user.onboarding = { active: true, idx: 0, answers: {}, startedAt: user.simDate };
+  await askOnboard(user, a, logs);
+}
+
+/** Trả lời một câu khai. Trả về true khi đã khai xong (hồ sơ thành nguồn dữ liệu chung). */
+async function answerOnboard(user, a, logs, text) {
+  const o = user.onboarding;
+  const q = OB_QUESTIONS[o.idx];
+  const val = obParse(q, text);
+  if (val === null || val === '' || Number.isNaN(val)) { await askOnboard(user, a, logs, { userAnswer: text, retry: true }); return false; }
+  o.answers[q.slot] = val;
+  o.idx = obNext(o, o.idx + 1);
+  if (o.idx < OB_QUESTIONS.length) { await askOnboard(user, a, logs, { userAnswer: text }); return false; }
+  o.active = false;
+  o.done = true;
+  user.selfReport = { answers: { ...o.answers }, at: user.simDate };
+  user.overrides = {};
+  user.alertKeys = {};
+  logs.push({ agent: 'Agent chính', action: 'onboard-done' });
+  return true;
 }
 
 async function startTopic(user, a, logs, key) {
@@ -682,6 +734,13 @@ export async function startSession(user) {
   const logs = [];
   const { a, logs: pl } = await pipeline(user);
   logs.push(...pl);
+  if (selfReportPending(user)) {
+    if (user.onboarding?.active) await askOnboard(user, a, logs, { resume: true });
+    else await startOnboarding(user, a, logs);
+    pushTrace(user, logs);
+    save();
+    return;
+  }
   if (user.session) {
     logs.push({ agent: 'Agent chính', action: 'resume', step: user.session.step });
     pushTrace(user, logs);
@@ -736,6 +795,14 @@ export async function reply(user, { text = '', value }) {
   if (text || value) userMsg(user, text || answer);
   let { a, logs: pl } = await pipeline(user);
   logs.push(...pl);
+  if (selfReportPending(user)) {
+    const t = typeof value === 'string' && value.startsWith('ob:') ? value.slice(3) : answer;
+    const done = user.onboarding?.active ? await answerOnboard(user, a, logs, t) : (await startOnboarding(user, a, logs), false);
+    pushTrace(user, logs);
+    save();
+    if (done) await onDataChange(user, 'self-report');
+    return;
+  }
   if (typeof value === 'string' && value.startsWith('focus:')) {
     await startTopic(user, a, logs, value.slice(6));
     logs.push({ agent: 'Agent chính', action: 'focus', topic: value.slice(6) });
@@ -946,7 +1013,15 @@ export async function onDataChange(user, reason) {
       template: 'Nhắc hẹn: {{rm_text}}.',
     }, logs);
   }
-  const dataReason = ['data-change', 'dataset-change', 'valo-import'].includes(reason);
+  if (selfReportPending(user)) {
+    // chưa khai xong: chưa có số của người dùng để báo, chỉ mời khai (hoặc hỏi tiếp câu đang dở)
+    if (!user.onboarding?.active) await startOnboarding(user, a, logs);
+    else if (reason === 'dataset-change') await askOnboard(user, a, logs, { resume: true });
+    pushTrace(user, logs);
+    save();
+    return;
+  }
+  const dataReason = ['data-change', 'dataset-change', 'valo-import', 'self-report'].includes(reason);
   if (dataReason) await announceNewData(user, a, logs, reason);
   user.lastDigest = digest(a);
   const before = user.chat.length;
@@ -954,7 +1029,7 @@ export async function onDataChange(user, reason) {
   const overview = (dataReason || reason === 'first-open') && !user.session;
   await evaluateEvents(user, a, logs, { reason, silent: overview ? ['ef_low', 'spend_over', 'bhxh_gap', 'retire_wait'] : [] });
   await maybeSummary(user, a, logs);
-  if (overview) await financialOverview(user, a, logs);
+  if (overview) await financialOverview(user, a, logs, reason === 'self-report' ? { head: 'Tổng kết tình hình tài chính theo lời bạn vừa khai' } : {});
   await resumeAfterDataChange(user, a, logs, before);
   pushTrace(user, logs);
   save();
@@ -970,7 +1045,7 @@ function digest(a) {
 
 /** Dữ liệu mới vào: Agent chính chủ động báo đã nhận gì và con số nào đổi (cũ → mới), trước khi xét cảnh báo. */
 async function announceNewData(user, a, logs, reason) {
-  const prev = user.lastDigest;
+  const prev = reason === 'self-report' ? null : user.lastDigest; // trước đó là dữ liệu mẫu tạm, so sánh không có nghĩa
   const asOf = fmtDate(a.snap.asOf);
   const extraFacts = [fact('d_source', { label: 'Nguồn dữ liệu', value: a.snap.meta.label, unit: 'text', formula: 'Adapter đang dùng', source: a.snap.meta.label, asOf })];
   const rec = { accounts: a.snap.accounts.length, spending: a.snap.monthlySpending.length, bhxh: a.snap.socialInsurance.periods.length, goals: a.snap.goals.length };
@@ -987,8 +1062,10 @@ async function announceNewData(user, a, logs, reason) {
   }
   const factIds = changes.flatMap((c) => [...c.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1])).filter((id) => a.factMap[id]);
   const sourceChanged = prev && prev.source !== a.snap.meta.label;
-  const head = reason === 'valo-import' ? 'Tôi vừa nhận dữ liệu mới bạn nhập từ Valo' : sourceChanged ? 'Tôi vừa chuyển sang nguồn dữ liệu mới' : 'Tôi vừa nhận dữ liệu bạn cập nhật';
-  const read = 'Agent Thu thập đọc được {{d_rec_accounts}} tài khoản, {{d_rec_spending}} tháng chi tiêu, {{d_rec_bhxh}} giai đoạn đóng BHXH và {{d_rec_goals}} mục tiêu.';
+  const head = reason === 'self-report' ? 'Cảm ơn bạn, tôi đã ghi đủ. Hồ sơ tự khai giờ là nguồn dữ liệu chung cho Tổng quan, Công cụ, Cam kết và các phiên coaching' : reason === 'valo-import' ? 'Tôi vừa nhận dữ liệu mới bạn nhập từ Valo' : sourceChanged ? 'Tôi vừa chuyển sang nguồn dữ liệu mới' : 'Tôi vừa nhận dữ liệu bạn cập nhật';
+  const read = reason === 'self-report'
+    ? 'Agent Thu thập đã nạp {{d_rec_accounts}} khoản tiền và {{d_rec_goals}} mục tiêu từ lời khai. Phần BHXH chưa có lịch sử đóng, khi bạn nối Valo tôi sẽ đọc thêm.'
+    : 'Agent Thu thập đọc được {{d_rec_accounts}} tài khoản, {{d_rec_spending}} tháng chi tiêu, {{d_rec_bhxh}} giai đoạn đóng BHXH và {{d_rec_goals}} mục tiêu.';
   const body = changes.length
     ? ` Con số thay đổi: ${changes.slice(0, 6).join('; ')}.`
     : prev ? ' Các con số chính không đổi so với lần tính trước.' : '';
@@ -1046,7 +1123,8 @@ export async function viewState(user, extras = {}) {
   const timeline = [];
   for (let age = 31; age <= 85; age++) timeline.push(stateAtAge(p, age, a.snap.profile.retireMonthlySpend));
   return {
-    user: { id: user.id, dataset: user.dataset, hasValoImport: Boolean(user.valoImport?.ctx), simDate: user.simDate, simDateText: fmtDate(user.simDate) },
+    user: { id: user.id, dataset: user.dataset, hasValoImport: Boolean(user.valoImport?.ctx), hasSelfReport: Boolean(user.selfReport), simDate: user.simDate, simDateText: fmtDate(user.simDate) },
+    onboarding: user.onboarding?.active ? { idx: user.onboarding.idx, total: OB_QUESTIONS.length } : null,
     data: { meta: a.snap.meta, asOf: fmtDate(a.snap.asOf), profile: a.snap.profile, edited: a.snap.edited, accounts: a.snap.accounts, goals: a.fin.goals, monthlyExpense: a.monthlyExpense, surplus: a.surplus },
     facts: a.factMap,
     events: a.events,
