@@ -3,24 +3,39 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Valo Agent</title>
+  <title>Valo Agent (Beta)</title>
+  <link rel="icon" type="image/png" href="/brand/valo-logo-192.png" />
+  <meta name="theme-color" content="#08080A" />
+  <script>
+    (function () {
+      var pref = 'auto';
+      try { pref = localStorage.getItem('valo-agent.theme') || 'auto'; } catch (e) {}
+      var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.add(dark ? 'dark' : 'light');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="top">
     <div class="brand">
-      <span class="logo">V</span>
+      <span class="logo"><span class="logo-in"><picture><source srcset="/brand/valo-logo-48.avif" type="image/avif" /><img src="/brand/valo-logo-192.png" alt="Valo" width="36" height="36" /></picture></span></span>
       <div>
-        <div class="title">Valo Agent</div>
-        <div class="sub">Coach tài chính cá nhân · GROW · số liệu do engine tính</div>
+        <div class="title">Valo Agent <span class="beta" title="Bản thử nghiệm: tính năng và số liệu có thể thay đổi">BETA</span></div>
+        <div class="sub"><i class="pulse"></i>Coach tài chính cá nhân · số liệu do engine tính</div>
       </div>
     </div>
     <div class="top-right">
       <span id="dataBadge" class="badge warn">DỮ LIỆU HƯ CẤU</span>
       <span id="aiBadge" class="badge"></span>
       <span class="badge neutral">Hôm nay (mô phỏng): <b id="simDate"></b></span>
+      <button id="themeBtn" class="btn small ghost" title="Đổi chế độ hiển thị">Tự động</button>
     </div>
   </header>
+  <div class="beta-bar"><b>Valo Agent đang ở bản Beta.</b> Đây là công cụ giáo dục và lập kế hoạch, không phải lời khuyên đầu tư. Số liệu do engine tính kèm nguồn và công thức; lời coach do AI viết có thể chưa hoàn hảo.</div>
 
   <main class="layout">
     <section class="chat-col">

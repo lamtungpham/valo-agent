@@ -86,7 +86,7 @@ function renderSegments(m) {
 
 function aiBadge(m) {
   return m.aiMode === 'ai'
-    ? '<span class="badge ai" title="Lời văn do Muse Spark viết, số do engine chèn">Nhận định của AI · Muse Spark</span>'
+    ? '<span class="badge ai" title="Lời văn do Muse Spark viết, số do engine chèn">✦ Nhận định của AI · Muse Spark</span>'
     : `<span class="badge neutral" title="${esc(m.aiError || '')}">Lời dẫn mẫu (chưa gọi được AI)</span>`;
 }
 function verifyBadge(m) {
@@ -175,7 +175,7 @@ function renderBhxh() {
   $('#tab-bhxh').innerHTML = `
     <h3>Trợ lý BHXH · ${esc(S.data.profile.name)}</h3>
     <div class="grid2">${kpi('bhxh_hist_months')}${kpi('bhxh_gap_count')}</div>
-    ${b.gapMonths.length ? `<div class="card" style="border-color:var(--bad)"><b style="color:var(--bad)">Phát hiện ${b.gapMonths.length} tháng ngắt quãng:</b> ${factSpan(F('bhxh_gap_list'))}<div class="note">Tháng thiếu nằm giữa ${esc(b.firstMonth)} và ${esc(b.lastMonth)}. Nên đối chiếu với công ty hoặc cơ quan BHXH.</div></div>` : `<div class="card note">Lịch sử liên tục từ ${esc(b.firstMonth)} đến ${esc(b.lastMonth)}, không có tháng ngắt quãng.</div>`}
+    ${b.gapMonths.length ? `<div class="card" style="border-color:var(--neg)"><b style="color:var(--neg)">Phát hiện ${b.gapMonths.length} tháng ngắt quãng:</b> ${factSpan(F('bhxh_gap_list'))}<div class="note">Tháng thiếu nằm giữa ${esc(b.firstMonth)} và ${esc(b.lastMonth)}. Nên đối chiếu với công ty hoặc cơ quan BHXH.</div></div>` : `<div class="card note">Lịch sử liên tục từ ${esc(b.firstMonth)} đến ${esc(b.lastMonth)}, không có tháng ngắt quãng.</div>`}
     <h4>Lịch sử đóng theo năm và tháng</h4>
     <div class="card" style="overflow-x:auto"><table class="bhxh-grid"><tr><th></th>${Array.from({ length: 12 }, (_, i) => `<th>${i + 1}</th>`).join('')}<th></th></tr>${rows}</table>
       <div class="note">Xanh: đã đóng · Đỏ: ngắt quãng · Xám: ngoài khoảng dữ liệu.</div></div>
@@ -322,6 +322,26 @@ function render() {
   renderAgents();
 }
 
+// Chế độ hiển thị Tối → Sáng → Tự động (giống Valo Web App)
+(() => {
+  const order = ['dark', 'light', 'auto'];
+  const label = { dark: 'Tối', light: 'Sáng', auto: 'Tự động' };
+  let pref = 'auto';
+  try { pref = localStorage.getItem('valo-agent.theme') || 'auto'; } catch {}
+  const apply = () => {
+    const dark = pref === 'dark' || (pref === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('light', !dark);
+    $('#themeBtn').textContent = `Giao diện: ${label[pref]}`;
+  };
+  $('#themeBtn').addEventListener('click', () => {
+    pref = order[(order.indexOf(pref) + 1) % order.length];
+    try { localStorage.setItem('valo-agent.theme', pref); } catch {}
+    apply();
+  });
+  apply();
+})();
+
 window.ValoApp = { act, api, get state() { return S; }, esc, factSpan, factTable, renderSegments, aiBadge, verifyBadge };
 
 (async () => {
@@ -360,23 +380,23 @@ window.Onboard = (() => {
     return `<h3>Bản đồ tài chính (hồ sơ tạm)</h3>
       <div class="card"><div class="note">Điều anh chưa yên tâm nhất</div><b>"${esc(p.worry)}"</b>${p.worryImpact ? `<div class="note">Khi giải quyết được: ${esc(p.worryImpact)}</div>` : ''}</div>
       <div class="card"><b>Dòng tiền tháng</b> · thu nhập ${factSpan(fm.ob_income)}
-        <div style="margin:8px 0">${bar([{ v: fl.expense, l: 'Chi tiêu', c: '#8a8f2a' }, { v: fl.debtPay, l: 'Trả nợ', c: 'var(--bad)' }, { v: Math.max(0, fl.surplus), l: 'Dư', c: 'var(--brand)' }], flowTotal)}</div>
+        <div style="margin:8px 0">${bar([{ v: fl.expense, l: 'Chi tiêu', c: '#8a8f2a' }, { v: fl.debtPay, l: 'Trả nợ', c: 'var(--neg)' }, { v: Math.max(0, fl.surplus), l: 'Dư', c: 'var(--pos)' }], flowTotal)}</div>
         <div class="note">Dư ${factSpan(fm.ob_surplus)} · tỷ lệ để dành ${factSpan(fm.ob_saving_rate)} · trả nợ/thu nhập ${factSpan(fm.ob_dti)}</div></div>
       <div class="card"><b>Tài sản và nợ</b>
-        <div style="margin:8px 0">${bar([{ v: b.emergency, l: 'Quỹ khẩn cấp', c: 'var(--info)' }, { v: b.savings, l: 'Tiết kiệm, đầu tư', c: 'var(--brand)' }], balTotal)}</div>
-        <div style="margin:8px 0">${bar([{ v: b.debt, l: 'Nợ', c: 'var(--bad)' }], balTotal)}</div>
+        <div style="margin:8px 0">${bar([{ v: b.emergency, l: 'Quỹ khẩn cấp', c: 'var(--info)' }, { v: b.savings, l: 'Tiết kiệm, đầu tư', c: 'var(--pos)' }], balTotal)}</div>
+        <div style="margin:8px 0">${bar([{ v: b.debt, l: 'Nợ', c: 'var(--neg)' }], balTotal)}</div>
         <div class="note">Tài sản ròng tài chính ${factSpan(fm.ob_net)}</div></div>
       <div class="card"><b>Quỹ khẩn cấp</b> đủ ${factSpan(fm.ob_ef_months)}
         <div class="gauge"><i class="${ef >= 3 ? 'ok' : ''}" style="width:${Math.min(100, (ef / 6) * 100)}%"></i><span class="tick" style="left:50%"></span></div>
         <div class="note">Vạch giữa = ngưỡng 3 tháng.</div></div>
       <div class="card"><b>Mục tiêu: ${esc(p.goalName || '')}</b> ${factSpan(fm.ob_goal)}
         <div class="note" style="margin-top:6px">Cần để dành mỗi tháng</div>${bar([{ v: need, l: 'Cần', c: 'var(--warn)' }], gTotal)}
-        <div class="note" style="margin-top:6px">Khả năng hiện tại (dòng tiền dư)</div>${bar([{ v: cap, l: 'Có thể', c: 'var(--brand)' }], gTotal)}
+        <div class="note" style="margin-top:6px">Khả năng hiện tại (dòng tiền dư)</div>${bar([{ v: cap, l: 'Có thể', c: 'var(--pos)' }], gTotal)}
         <div class="note">Chênh ${factSpan(fm.ob_goal_gap)} · nếu dồn toàn bộ phần dư: ${factSpan(fm.ob_goal_at_surplus)}</div></div>
       <div class="card"><b>Điểm cần chú ý</b><ul>${p.flags.map((f) => `<li>${esc(f.text)}: ${factSpan(fm[f.factId])}</li>`).join('') || '<li>Không có điểm lệch ngưỡng.</li>'}</ul>
         <div class="note">Khẩu vị rủi ro: ${factSpan(fm.ob_risk)}</div></div>
       ${factTable(p.facts)}
-      <div class="card" style="border-color:var(--brand)"><b>Nối Valo để số liệu tự cập nhật</b>
+      <div class="card" style="border-color:var(--pos)"><b>Nối Valo để số liệu tự cập nhật</b>
         <p class="note">Hồ sơ này dựa trên lời khai nên sẽ cũ dần. Khi nối Valo, Agent Thu thập đọc số dư, chi tiêu và lịch sử BHXH qua adapter và tự đánh giá lại mỗi khi dữ liệu đổi.</p>
         <button class="btn primary" id="obConnect">Nối Valo</button> <button class="btn" id="obRestart">Làm lại từ đầu</button></div>`;
   }

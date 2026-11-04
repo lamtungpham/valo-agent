@@ -1,6 +1,6 @@
 Ý tưởng lấy cảm hứng từ app quản lý tài chính cá nhân làm trước đó (Valo); toàn bộ code trợ lý trong repo này được viết mới trong tuần thi 27/10–05/11/2026.
 
-# Valo Agent
+# Valo Agent (Beta)
 
 AI Agent đóng vai **coach tài chính cá nhân bằng tiếng Việt**. Không phải chatbot hỏi gì đáp nấy: agent có hồ sơ coaching bền vững, đi theo khung **GROW**, chốt **cam kết có hạn**, theo dõi và **hỏi lại cam kết chưa làm**, tự lên tiếng khi dữ liệu **lệch ngưỡng**. Mọi con số do **engine xác định** tính; LLM (Muse Spark) chỉ kể chuyện.
 
@@ -10,8 +10,8 @@ AI Agent đóng vai **coach tài chính cá nhân bằng tiếng Việt**. Khôn
 
 | | Nội dung |
 |---|---|
-| **Có sẵn trước tuần thi** (không nằm trong repo này) | Ý tưởng sản phẩm và app quản lý tài chính Valo; định dạng xuất dữ liệu `valo-financial-context` v4.0 mà adapter đọc vào. |
-| **Làm mới trong tuần thi** (toàn bộ repo này) | Engine tài chính và BHXH, multi-agent, vòng GROW và cam kết, đánh giá theo sự kiện, tool mô phỏng, adapter Valo và mock, nhánh hỏi coaching, giao diện, test. Không chép code từ app cũ. |
+| **Có sẵn trước tuần thi** | Ý tưởng sản phẩm và app quản lý tài chính Valo (repo khác); định dạng xuất dữ liệu `valo-financial-context` v4.0 mà adapter đọc vào; file logo Valo trong `public/brand/` và bảng màu, font của Valo Web App (giao diện Valo Agent viết CSS mới theo cùng bộ màu). |
+| **Làm mới trong tuần thi** (toàn bộ repo này) | Engine tài chính và BHXH, multi-agent, vòng coaching GROW + OSKAR + WOOP + MI và cam kết, đánh giá theo sự kiện, tool mô phỏng, adapter Valo và mock, nhánh hỏi coaching, giao diện, test. Không chép code từ app cũ. |
 
 ## Chạy bằng một lệnh
 
@@ -67,13 +67,28 @@ Muốn bật AI, sao chép `.env.example` thành `.env` và điền `META_API_KE
 2. Agent Kiểm chứng bỏ placeholder ra rồi quét văn bản: còn chữ số, còn từ chỉ số như "triệu", "tỷ", "phần trăm", hoặc có mã fact không tồn tại thì **chặn cả bản nháp** và thay bằng lời dẫn mẫu.
 3. Giao diện thay mã bằng giá trị engine, hiện dạng chip xanh. Rê chuột vào chip để xem công thức, nguồn, ngày dữ liệu. Mỗi tin có nhãn "Nhận định của AI · Muse Spark" hoặc "Lời dẫn mẫu", tách bạch với bảng "Số tính được bởi engine".
 
+## Khung khai vấn
+
+GROW là khung mặc định, có thêm ba lớp, mỗi tin coach chỉ hỏi một câu:
+
+| Lớp | Dùng khi | Bước trong app |
+|---|---|---|
+| **Stages of Change + MI** | Mở phiên, hỏi mức sẵn sàng. Người còn lưỡng lự không bị ép đặt mục tiêu | Khơi khoảng cách (dùng số mô phỏng sốc của engine), phản chiếu hai phía, thước đo tầm quan trọng 0-10, xin phép thử bước nhỏ hoặc hẹn hỏi lại sau 7 ngày |
+| **GROW + OSKAR** | Phiên mục tiêu | Goal/Outcome → Reality + Scaling 0-10 → Know-how (từng làm được nhờ đâu) → Options (engine tính) → Will + Affirm |
+| **WOOP** | Hành vi nhỏ tuần này, chống tái phát | Wish (mức đã chọn) → Outcome → Obstacle nội tại → Plan "Nếu… thì tôi sẽ…" → thước đo tự tin (dưới 7 thì tự hạ mức) |
+| **OSKAR Review** | Đầu phiên sau | Đã làm: hỏi điều gì giúp làm được, chấm lại điểm. Chưa làm: đối chiếu trở ngại và kế hoạch nếu-thì đã lường trước, hỏi chuyện gì thực sự xảy ra, chọn mức chắc tay hơn |
+
+Câu trả lời của người dùng (điểm 0-10, trở ngại, kế hoạch nếu-thì) cũng là fact có nguồn "Phiên coaching", nên Agent Kiểm chứng vẫn chặn mọi con số LLM tự viết.
+
 ## Vòng lặp P0 đầu cuối
 
 1. Mở app: Agent Phân tích thấy quỹ dự phòng **1,6 tháng < 3 tháng** và tự lên tiếng (cùng cảnh báo chi tiêu vượt ngân sách, tuổi nghỉ dự định sớm hơn tuổi luật).
-2. Bấm "Bắt đầu phiên coaching". Coach hỏi đúng ba câu GROW: **Goal** (quỹ bao nhiêu tháng), **Reality** (điều gì đang cản trở), **Options** (ba mức để riêng mỗi tuần, engine tính số tháng về đích).
+2. Bấm "Bắt đầu phiên coaching", chọn "Muốn bắt đầu, cần một kế hoạch". Coach hỏi theo GROW: **Goal** (quỹ bao nhiêu tháng), **Reality** (số engine + tự chấm 0-10), Know-how, **Options** (ba mức để riêng mỗi tuần, engine tính số tháng về đích), rồi WOOP.
 3. **Will**: coach đề xuất kế hoạch và cam kết có hạn, ví dụ "Để riêng 500.000 đ vào quỹ dự phòng trước 11/11/2026". Bấm "Tôi cam kết" để ghi.
-4. Tab Dữ liệu → "Tua 7 ngày": agent nhắc cam kết tới hạn và gửi tóm tắt tuần. "Tua 1 ngày" nữa: cam kết quá hạn, bấm "Bắt đầu / tiếp tục phiên", coach **nhắc lại cam kết cũ và hỏi vướng ở đâu**, ghi vào lịch sử vi phạm rồi mở vòng GROW mới.
+4. Tab Dữ liệu → "Tua 7 ngày": agent nhắc cam kết tới hạn và gửi tóm tắt tuần. "Tua 1 ngày" nữa: cam kết quá hạn, bấm "Bắt đầu / tiếp tục phiên", coach **nhắc lại cam kết cũ và hỏi chuyện gì đã xảy ra so với trở ngại và kế hoạch nếu-thì đã lường trước**, ghi vào lịch sử vi phạm rồi mở vòng mới với mức chắc tay hơn.
 5. Tab BHXH: lưới đóng theo năm và tháng, số tháng ngắt quãng, tuổi luật so với tuổi dự định, lương hưu dự kiến, **thanh trượt 31-85 tuổi**. Tab Dữ liệu → chọn "Bộ 2" để thấy engine báo đúng **3 tháng ngắt quãng 03, 04, 05/2022**.
+
+Chọn "Biết là cần nhưng còn lưỡng lự" ở câu đầu để xem nhánh MI.
 
 Phiên đang dở được lưu: tải lại trang hoặc khởi động lại server, coach tiếp tục đúng bước cũ.
 
