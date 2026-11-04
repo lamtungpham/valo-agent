@@ -1,6 +1,6 @@
 // CHỦ ĐỀ COACHING: Agent Phân tích phát hiện các điểm chưa tốt (xác định, không LLM),
 // người dùng chọn một điểm, rồi phiên coaching (GROW + OSKAR + WOOP, MI khi lưỡng lự) chạy trên chủ đề đó.
-// Mỗi chủ đề tự tính fact của mình từ engine; template không chứa chữ số.
+// Mỗi chủ đề tự tính fact riêng từ engine; template không chứa chữ số.
 import { fact } from '../engine/facts.js';
 import { THRESHOLDS, monthsToReach } from '../engine/finance.js';
 import { fmtDate } from './analyst.js';
@@ -51,7 +51,7 @@ export function detectIssues(a) {
     });
   }
   if (a.factMap.retire_gap?.value > 0) {
-    out.push({ key: 'retire', severity: 1, label: 'Chuẩn bị cho giai đoạn nghỉ sớm', text: 'anh định nghỉ ở {{age_planned}} nhưng lương hưu bắt đầu từ {{age_legal}}, cần tự chuẩn bị khoảng {{retire_gap}}', factIds: ['age_planned', 'age_legal', 'retire_gap'] });
+    out.push({ key: 'retire', severity: 1, label: 'Chuẩn bị cho giai đoạn nghỉ sớm', text: 'bạn định nghỉ ở {{age_planned}} nhưng lương hưu bắt đầu từ {{age_legal}}, cần tự chuẩn bị khoảng {{retire_gap}}', factIds: ['age_planned', 'age_legal', 'retire_gap'] });
   }
   return out.sort((x, y) => y.severity - x.severity).slice(0, 4);
 }
@@ -79,9 +79,9 @@ export const TOPICS = {
   spend: {
     name: 'giữ chi tiêu trong ngân sách',
     goal: (a) => ({
-      question: 'Tháng tới, anh muốn chi tiêu dừng ở mức nào?',
+      question: 'Tháng tới, bạn muốn chi tiêu dừng ở mức nào?',
       factIds: ['spend_last', 't_budget'],
-      template: 'Tháng gần nhất anh chi {{spend_last}}, trong khi ngân sách là {{t_budget}}. Mình bắt đầu từ điều anh muốn: tháng tới, anh muốn chi tiêu dừng ở mức nào?',
+      template: 'Tháng gần nhất bạn chi {{spend_last}}, trong khi ngân sách là {{t_budget}}. Chúng ta bắt đầu từ điều bạn muốn: tháng tới, bạn muốn chi tiêu dừng ở mức nào?',
       chips: [{ label: `Đúng ngân sách`, value: String(a.fin.spend.budget) }, { label: 'Giảm dần, chưa cần về ngân sách ngay', value: String(Math.round((a.fin.spend.amount + a.fin.spend.budget) / 2)) }],
     }),
     parseGoal: (d, answer, value, a, parseMoney) => { d.targetSpend = Number(value) || parseMoney(answer) || a.fin.spend.budget; },
@@ -94,7 +94,7 @@ export const TOPICS = {
       d.options = opts;
       const out = [
         F(a, 't_budget', { label: 'Ngân sách chi tiêu tháng', value: sp.budget, unit: 'vnd', formula: 'Ngân sách trong dữ liệu' }),
-        F(a, 't_target', { label: 'Mức chi anh muốn tháng tới', value: target, unit: 'vnd', formula: 'Người dùng chọn ở bước mục tiêu', source: 'Phiên coaching' }),
+        F(a, 't_target', { label: 'Mức chi bạn muốn tháng tới', value: target, unit: 'vnd', formula: 'Người dùng chọn ở bước mục tiêu', source: 'Phiên coaching' }),
         F(a, 't_cut', { label: 'Cần bớt so với tháng gần nhất', value: cut, unit: 'vnd', formula: 'Chi tiêu tháng gần nhất − mức muốn' }),
       ];
       opts.forEach((w, i) => {
@@ -106,18 +106,18 @@ export const TOPICS = {
     },
     reality: () => ({
       factIds: ['spend_last', 't_target', 't_cut'],
-      template: 'Thực tế bây giờ: tháng gần nhất anh chi {{spend_last}}, mức anh muốn là {{t_target}}, tức cần bớt khoảng {{t_cut}}. Trên thang {{k_scale}}, với mức cao nhất là anh hoàn toàn làm chủ chi tiêu của mình, anh thấy mình đang ở đâu?',
-      question: 'Với mức cao nhất là anh hoàn toàn làm chủ chi tiêu, anh thấy mình đang ở đâu?',
+      template: 'Thực tế bây giờ: tháng gần nhất bạn chi {{spend_last}}, mức bạn muốn là {{t_target}}, tức cần bớt khoảng {{t_cut}}. Trên thang {{k_scale}}, với mức cao nhất là bạn hoàn toàn làm chủ chi tiêu của mình, bạn thấy mình đang ở đâu?',
+      question: 'Với mức cao nhất là bạn hoàn toàn làm chủ chi tiêu, bạn thấy mình đang ở đâu?',
     }),
-    knowhowQ: 'Đã có lúc nào anh giữ được chi tiêu trong khuôn khổ chưa, và điều gì giúp anh làm được lúc đó?',
+    knowhowQ: 'Đã có lúc nào bạn giữ được chi tiêu trong khuôn khổ chưa, và điều gì giúp bạn làm được lúc đó?',
     options: () => ({
       factIds: ['o1_weekly', 'o1_monthly', 'o2_weekly', 'o2_monthly', 'o3_weekly', 'o3_monthly'],
-      template: 'Engine tính ba mức bớt chi tiêu không thiết yếu: {{o1_weekly}} mỗi tuần, tức khoảng {{o1_monthly}} mỗi tháng; {{o2_weekly}}, tức {{o2_monthly}}; hoặc {{o3_weekly}}, tức {{o3_monthly}}. Mức nào anh chắc chắn giữ được, kể cả vào tuần nhiều cám dỗ nhất?',
-      question: 'Mức nào anh chắc chắn giữ được, kể cả vào tuần nhiều cám dỗ nhất?',
+      template: 'Engine tính ba mức bớt chi tiêu không thiết yếu: {{o1_weekly}} mỗi tuần, tức khoảng {{o1_monthly}} mỗi tháng; {{o2_weekly}}, tức {{o2_monthly}}; hoặc {{o3_weekly}}, tức {{o3_monthly}}. Mức nào bạn chắc chắn giữ được, kể cả vào tuần nhiều cám dỗ nhất?',
+      question: 'Mức nào bạn chắc chắn giữ được, kể cả vào tuần nhiều cám dỗ nhất?',
     }),
-    outcome: 'Hình dung cuối tuần này anh đã giữ được khoản bớt {{w_weekly}}. Điều tốt đẹp nhất anh cảm nhận được lúc đó là gì?',
+    outcome: 'Hình dung cuối tuần này bạn đã giữ được khoản bớt {{w_weekly}}. Điều tốt đẹp nhất bạn cảm nhận được lúc đó là gì?',
     will: 'Cam kết tuần này: bớt {{w_weekly}} chi tiêu không thiết yếu trước {{w_due}}',
-    willTail: 'Giữ đều, mỗi tháng anh để dành thêm được {{w_monthly}}. Anh chốt cam kết này chứ?',
+    willTail: 'Giữ đều, mỗi tháng bạn để dành thêm được {{w_monthly}}. Bạn chốt cam kết này chứ?',
     willIds: ['w_weekly', 'w_due', 'w_monthly'],
     commitText: (d, vnd, due) => `Bớt ${vnd(d.weekly)} chi tiêu không thiết yếu trước ${due}`,
     goalName: () => 'Giữ chi tiêu trong ngân sách',
@@ -126,9 +126,9 @@ export const TOPICS = {
   goal: {
     name: 'đẩy nhanh mục tiêu',
     goal: () => ({
-      question: 'Anh muốn hoàn thành mục tiêu này trong khoảng bao lâu?',
+      question: 'Bạn muốn hoàn thành mục tiêu này trong khoảng bao lâu?',
       factIds: ['goal_main_name', 'goal_main_remaining'],
-      template: 'Mục tiêu "{{goal_main_name}}" còn thiếu {{goal_main_remaining}}. Mình bắt đầu từ đích đến: anh muốn hoàn thành mục tiêu này trong khoảng bao lâu?',
+      template: 'Mục tiêu "{{goal_main_name}}" còn thiếu {{goal_main_remaining}}. Chúng ta bắt đầu từ đích đến: bạn muốn hoàn thành mục tiêu này trong khoảng bao lâu?',
       chips: [{ label: 'Trong 3 năm', value: '36' }, { label: 'Trong 5 năm', value: '60' }, { label: 'Trong 10 năm', value: '120' }],
     }),
     parseGoal: (d, answer, value) => {
@@ -146,8 +146,8 @@ export const TOPICS = {
       const opts = [0.5, 1, 1.5].map((k) => round50k(base * k));
       d.options = opts;
       const out = [
-        F(a, 't_target_time', { label: 'Thời hạn anh muốn', value: tm, unit: 'months', formula: 'Người dùng chọn', source: 'Phiên coaching' }),
-        F(a, 't_need_monthly', { label: 'Cần góp mỗi tháng để kịp hạn', value: need, unit: 'vnd', formula: 'Còn thiếu ÷ số tháng anh muốn' }),
+        F(a, 't_target_time', { label: 'Thời hạn bạn muốn', value: tm, unit: 'months', formula: 'Người dùng chọn', source: 'Phiên coaching' }),
+        F(a, 't_need_monthly', { label: 'Cần góp mỗi tháng để kịp hạn', value: need, unit: 'vnd', formula: 'Còn thiếu ÷ số tháng bạn muốn' }),
       ];
       opts.forEach((w, i) => {
         out.push(F(a, `o${i + 1}_weekly`, { label: `Phương án ${i + 1}: góp thêm mỗi tuần`, value: w, unit: 'vnd', formula: 'Mức đề xuất' }));
@@ -162,18 +162,18 @@ export const TOPICS = {
     },
     reality: () => ({
       factIds: ['t_target_time', 't_need_monthly', 'goal_main_monthly', 'monthly_surplus'],
-      template: 'Thực tế bây giờ: để xong trong {{t_target_time}}, mỗi tháng cần góp khoảng {{t_need_monthly}}, hiện anh đang góp {{goal_main_monthly}} và mỗi tháng dư {{monthly_surplus}}. Trên thang {{k_scale}}, với mức cao nhất là mục tiêu đang đi đúng tiến độ anh muốn, anh thấy mình đang ở đâu?',
-      question: 'Với mức cao nhất là mục tiêu đang đi đúng tiến độ anh muốn, anh thấy mình đang ở đâu?',
+      template: 'Thực tế bây giờ: để xong trong {{t_target_time}}, mỗi tháng cần góp khoảng {{t_need_monthly}}, hiện bạn đang góp {{goal_main_monthly}} và mỗi tháng dư {{monthly_surplus}}. Trên thang {{k_scale}}, với mức cao nhất là mục tiêu đang đi đúng tiến độ bạn muốn, bạn thấy mình đang ở đâu?',
+      question: 'Với mức cao nhất là mục tiêu đang đi đúng tiến độ bạn muốn, bạn thấy mình đang ở đâu?',
     }),
-    knowhowQ: 'Trước đây anh từng để dành được một khoản lớn cho việc gì, và điều gì giúp anh làm được?',
+    knowhowQ: 'Trước đây bạn từng để dành được một khoản lớn cho việc gì, và điều gì giúp bạn làm được?',
     options: () => ({
       factIds: ['o1_weekly', 'o1_months', 'o2_weekly', 'o2_months', 'o3_weekly', 'o3_months'],
-      template: 'Engine tính ba mức góp thêm: {{o1_weekly}} mỗi tuần thì xong sau {{o1_months}}; {{o2_weekly}} thì sau {{o2_months}}; {{o3_weekly}} thì sau {{o3_months}}. Mức nào anh chắc chắn làm được đều đặn?',
-      question: 'Mức nào anh chắc chắn làm được đều đặn?',
+      template: 'Engine tính ba mức góp thêm: {{o1_weekly}} mỗi tuần thì xong sau {{o1_months}}; {{o2_weekly}} thì sau {{o2_months}}; {{o3_weekly}} thì sau {{o3_months}}. Mức nào bạn chắc chắn làm được đều đặn?',
+      question: 'Mức nào bạn chắc chắn làm được đều đặn?',
     }),
-    outcome: 'Hình dung tối chủ nhật này anh đã chuyển xong {{w_weekly}} vào mục tiêu. Điều tốt đẹp nhất anh cảm nhận được lúc đó là gì?',
+    outcome: 'Hình dung tối chủ nhật này bạn đã chuyển xong {{w_weekly}} vào mục tiêu. Điều tốt đẹp nhất bạn cảm nhận được lúc đó là gì?',
     will: 'Cam kết tuần này: chuyển thêm {{w_weekly}} vào mục tiêu trước {{w_due}}',
-    willTail: 'Giữ đều mức này, mục tiêu xong sau {{w_months}}. Anh chốt cam kết này chứ?',
+    willTail: 'Giữ đều mức này, mục tiêu xong sau {{w_months}}. Bạn chốt cam kết này chứ?',
     willIds: ['w_weekly', 'w_due', 'w_months'],
     commitText: (d, vnd, due) => `Chuyển thêm ${vnd(d.weekly)} vào mục tiêu "${d.goalName}" trước ${due}`,
     goalName: (d) => d.goalName,
@@ -182,9 +182,9 @@ export const TOPICS = {
   retire: {
     name: 'chuẩn bị tiền cho giai đoạn nghỉ sớm',
     goal: () => ({
-      question: 'Anh muốn tự lo được bao nhiêu phần khoảng trống đó bằng tiền tích luỹ riêng?',
+      question: 'Bạn muốn tự lo được bao nhiêu phần khoảng trống đó bằng tiền tích luỹ riêng?',
       factIds: ['retire_wait_months', 'retire_gap'],
-      template: 'Giai đoạn từ lúc anh nghỉ tới khi có lương hưu kéo dài {{retire_wait_months}}, cần khoảng {{retire_gap}}. Anh muốn tự lo được bao nhiêu phần khoảng trống đó bằng tiền tích luỹ riêng?',
+      template: 'Giai đoạn từ lúc bạn nghỉ tới khi có lương hưu kéo dài {{retire_wait_months}}, cần khoảng {{retire_gap}}. Bạn muốn tự lo được bao nhiêu phần khoảng trống đó bằng tiền tích luỹ riêng?',
       chips: [{ label: 'Toàn bộ', value: '1' }, { label: 'Khoảng một nửa, phần còn lại tính sau', value: '0.5' }],
     }),
     parseGoal: (d, answer, value) => { d.share = Number(value) || (/nửa|một phần/i.test(answer) ? 0.5 : 1); },
@@ -195,7 +195,7 @@ export const TOPICS = {
       const opts = [0.5, 1, 1.25].map((k) => round50k((need / WEEKS_PER_MONTH) * k));
       d.options = opts;
       const out = [
-        F(a, 't_goal_amount', { label: 'Phần anh muốn tự lo', value: gap, unit: 'vnd', formula: 'Khoảng trống hưu trí × tỷ lệ anh chọn' }),
+        F(a, 't_goal_amount', { label: 'Phần bạn muốn tự lo', value: gap, unit: 'vnd', formula: 'Khoảng trống hưu trí × tỷ lệ bạn chọn' }),
         F(a, 't_months_left', { label: 'Thời gian tới tuổi nghỉ dự định', value: left, unit: 'months', formula: 'Tháng nghỉ dự định − tháng hiện tại' }),
         F(a, 't_need_monthly', { label: 'Cần để dành mỗi tháng (không tính lãi)', value: need, unit: 'vnd', formula: 'Phần muốn tự lo ÷ số tháng còn lại' }),
       ];
@@ -208,18 +208,18 @@ export const TOPICS = {
     },
     reality: () => ({
       factIds: ['t_goal_amount', 't_months_left', 't_need_monthly'],
-      template: 'Thực tế bây giờ: phần anh muốn tự lo là {{t_goal_amount}}, còn {{t_months_left}} tới tuổi nghỉ dự định, nếu chỉ để dành không tính lãi thì mỗi tháng cần khoảng {{t_need_monthly}}. Trên thang {{k_scale}}, với mức cao nhất là anh đã có kế hoạch rõ ràng cho giai đoạn này, anh thấy mình đang ở đâu?',
-      question: 'Với mức cao nhất là anh đã có kế hoạch rõ ràng cho giai đoạn này, anh thấy mình đang ở đâu?',
+      template: 'Thực tế bây giờ: phần bạn muốn tự lo là {{t_goal_amount}}, còn {{t_months_left}} tới tuổi nghỉ dự định, nếu chỉ để dành không tính lãi thì mỗi tháng cần khoảng {{t_need_monthly}}. Trên thang {{k_scale}}, với mức cao nhất là bạn đã có kế hoạch rõ ràng cho giai đoạn này, bạn thấy mình đang ở đâu?',
+      question: 'Với mức cao nhất là bạn đã có kế hoạch rõ ràng cho giai đoạn này, bạn thấy mình đang ở đâu?',
     }),
-    knowhowQ: 'Trước đây anh từng kiên trì để dành cho một việc dài hơi nào chưa, và điều gì giúp anh giữ được nhịp?',
+    knowhowQ: 'Trước đây bạn từng kiên trì để dành cho một việc dài hơi nào chưa, và điều gì giúp bạn giữ được nhịp?',
     options: () => ({
       factIds: ['o1_weekly', 'o1_cover', 'o2_weekly', 'o2_cover', 'o3_weekly', 'o3_cover'],
-      template: 'Engine tính ba mức: để dành {{o1_weekly}} mỗi tuần thì tới lúc nghỉ lo được {{o1_cover}} phần anh muốn; {{o2_weekly}} thì được {{o2_cover}}; {{o3_weekly}} thì được {{o3_cover}}. Mức nào anh giữ được lâu dài mà không thấy quá sức?',
-      question: 'Mức nào anh giữ được lâu dài mà không thấy quá sức?',
+      template: 'Engine tính ba mức: để dành {{o1_weekly}} mỗi tuần thì tới lúc nghỉ lo được {{o1_cover}} phần bạn muốn; {{o2_weekly}} thì được {{o2_cover}}; {{o3_weekly}} thì được {{o3_cover}}. Mức nào bạn giữ được lâu dài mà không thấy quá sức?',
+      question: 'Mức nào bạn giữ được lâu dài mà không thấy quá sức?',
     }),
-    outcome: 'Hình dung tối chủ nhật này anh đã để riêng {{w_weekly}} cho quỹ nghỉ sớm. Điều tốt đẹp nhất anh cảm nhận được lúc đó là gì?',
+    outcome: 'Hình dung tối chủ nhật này bạn đã để riêng {{w_weekly}} cho quỹ nghỉ sớm. Điều tốt đẹp nhất bạn cảm nhận được lúc đó là gì?',
     will: 'Cam kết tuần này: để riêng {{w_weekly}} vào quỹ nghỉ sớm trước {{w_due}}',
-    willTail: 'Giữ đều mức này, tới lúc nghỉ anh lo được {{w_cover}} phần mình muốn. Anh chốt cam kết này chứ?',
+    willTail: 'Giữ đều mức này, tới lúc nghỉ bạn lo được {{w_cover}} phần mình muốn. Bạn chốt cam kết này chứ?',
     willIds: ['w_weekly', 'w_due', 'w_cover'],
     commitText: (d, vnd, due) => `Để riêng ${vnd(d.weekly)} vào quỹ nghỉ sớm trước ${due}`,
     goalName: () => 'Quỹ cho giai đoạn nghỉ sớm',
@@ -229,32 +229,32 @@ export const TOPICS = {
     name: 'xử lý các tháng BHXH bị thiếu',
     action: true,
     goal: () => ({
-      question: 'Anh muốn chuyện này được làm rõ xong trước khi nào?',
+      question: 'Bạn muốn chuyện này được làm rõ xong trước khi nào?',
       factIds: ['bhxh_gap_list'],
-      template: 'Các tháng {{bhxh_gap_list}} đang trống trong lịch sử BHXH. Mình bắt đầu từ đích đến: anh muốn chuyện này được làm rõ xong trước khi nào?',
+      template: 'Các tháng {{bhxh_gap_list}} đang trống trong lịch sử BHXH. Chúng ta bắt đầu từ đích đến: bạn muốn chuyện này được làm rõ xong trước khi nào?',
       chips: [{ label: 'Trong tuần này', value: '7' }, { label: 'Trong tháng này', value: '30' }],
     }),
     parseGoal: (d, answer, value) => { d.days = Number(value) || (/tháng/i.test(answer) ? 30 : 7); },
     facts(a, d) {
       const out = [];
-      if (d.actionText) out.push(F(a, 'w_action', { label: 'Việc anh chọn làm', value: d.actionText, unit: 'text', formula: 'Người dùng chọn', source: 'Phiên coaching' }));
+      if (d.actionText) out.push(F(a, 'w_action', { label: 'Việc bạn chọn làm', value: d.actionText, unit: 'text', formula: 'Người dùng chọn', source: 'Phiên coaching' }));
       return out;
     },
     reality: () => ({
       factIds: ['bhxh_gap_count', 'bhxh_hist_months'],
-      template: 'Thực tế bây giờ: anh đã đóng {{bhxh_hist_months}}, nhưng có {{bhxh_gap_count}} tháng bị trống, có thể do chuyển việc hoặc công ty chậm đóng. Trên thang {{k_scale}}, với mức cao nhất là anh đã biết chắc lý do và cách xử lý, anh thấy mình đang ở đâu?',
-      question: 'Với mức cao nhất là anh đã biết chắc lý do và cách xử lý, anh thấy mình đang ở đâu?',
+      template: 'Thực tế bây giờ: bạn đã đóng {{bhxh_hist_months}}, nhưng có {{bhxh_gap_count}} tháng bị trống, có thể do chuyển việc hoặc công ty chậm đóng. Trên thang {{k_scale}}, với mức cao nhất là bạn đã biết chắc lý do và cách xử lý, bạn thấy mình đang ở đâu?',
+      question: 'Với mức cao nhất là bạn đã biết chắc lý do và cách xử lý, bạn thấy mình đang ở đâu?',
     }),
-    knowhowQ: 'Trước đây khi cần làm rõ một giấy tờ hay thủ tục, cách nào đã giúp anh xử lý nhanh nhất?',
+    knowhowQ: 'Trước đây khi cần làm rõ một giấy tờ hay thủ tục, cách nào đã giúp bạn xử lý nhanh nhất?',
     options: () => ({
       factIds: [],
-      template: 'Có ba cách để bắt đầu: hỏi phòng nhân sự nơi anh làm vào giai đoạn đó, tự tra cứu quá trình đóng trên ứng dụng VssID, hoặc mang sổ tới cơ quan BHXH để đối chiếu. Cách nào anh chắc chắn làm được ngay tuần này?',
-      question: 'Cách nào anh chắc chắn làm được ngay tuần này?',
+      template: 'Có ba cách để bắt đầu: hỏi phòng nhân sự nơi bạn làm vào giai đoạn đó, tự tra cứu quá trình đóng trên ứng dụng VssID, hoặc mang sổ tới cơ quan BHXH để đối chiếu. Cách nào bạn chắc chắn làm được ngay tuần này?',
+      question: 'Cách nào bạn chắc chắn làm được ngay tuần này?',
       chips: ['Hỏi phòng nhân sự công ty lúc đó', 'Tra cứu trên ứng dụng VssID', 'Tới cơ quan BHXH đối chiếu'],
     }),
-    outcome: 'Hình dung cuối tuần này anh đã làm xong việc "{{w_action}}". Điều tốt đẹp nhất anh cảm nhận được lúc đó là gì?',
+    outcome: 'Hình dung cuối tuần này bạn đã làm xong việc "{{w_action}}". Điều tốt đẹp nhất bạn cảm nhận được lúc đó là gì?',
     will: 'Cam kết: {{w_action}} trước {{w_due}}',
-    willTail: 'Làm xong bước này, anh sẽ biết các tháng trống có truy đóng được không. Anh chốt cam kết này chứ?',
+    willTail: 'Làm xong bước này, bạn sẽ biết các tháng trống có truy đóng được không. Bạn chốt cam kết này chứ?',
     willIds: ['w_action', 'w_due'],
     commitText: (d, vnd, due) => `${d.actionText} trước ${due}`,
     goalName: () => 'Làm rõ tháng BHXH bị thiếu',

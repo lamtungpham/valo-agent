@@ -47,7 +47,7 @@ export async function runTool(user, { tool, params = {} }) {
       F('t_faster', { label: 'Phương án nhanh hơn', value: r.faster === 'equal' ? 'Bằng nhau' : `Phương án ${r.faster}`, unit: 'text', formula: 'So sánh số tháng' }),
     ];
     intent = 'So sánh hai phương án tiết kiệm mua nhà, nêu đánh đổi không chỉ tốc độ';
-    template = 'Phương án A về đích sau {{t_a_months}}, phương án B sau {{t_b_months}}. {{t_faster}} nhanh hơn {{t_diff}}. Anh cân nhắc thêm phương án nào giữ được quỹ dự phòng an toàn.';
+    template = 'Phương án A về đích sau {{t_a_months}}, phương án B sau {{t_b_months}}. {{t_faster}} nhanh hơn {{t_diff}}. Bạn cân nhắc thêm phương án nào giữ được quỹ dự phòng an toàn.';
   } else if (tool === 'shock_job_loss') {
     const months = Math.min(24, Math.max(1, num(params.months, 6)));
     const r = shockJobLoss({ fund: a.fin.ef.balance, monthlyExpense: a.monthlyExpense, months, otherIncome: num(params.otherIncome, 0) });
@@ -59,7 +59,7 @@ export async function runTool(user, { tool, params = {} }) {
       F('t_short', { label: 'Còn thiếu', value: r.shortfall, unit: 'vnd', formula: 'max(0, tiền cần − quỹ)' }),
     ];
     intent = 'Diễn giải mô phỏng sốc mất việc, nói rõ rủi ro mà không gây hoảng';
-    template = 'Nếu mất thu nhập {{t_months}}, anh cần {{t_need}} để giữ mức sống hiện tại. Quỹ dự phòng {{t_fund}} chỉ chịu được {{t_runway}}, còn thiếu {{t_short}}.';
+    template = 'Nếu mất thu nhập {{t_months}}, bạn cần {{t_need}} để giữ mức sống hiện tại. Quỹ dự phòng {{t_fund}} chỉ chịu được {{t_runway}}, còn thiếu {{t_short}}.';
   } else if (tool === 'create_goal') {
     const g = { id: uid('g'), name: String(params.name || 'Mục tiêu mới').slice(0, 80), kind: 'custom', target: num(params.target), current: num(params.current), monthly: num(params.monthly), createdAt: user.simDate };
     const p = goalProjection(g);

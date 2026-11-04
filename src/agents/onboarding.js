@@ -8,19 +8,19 @@ import { THRESHOLDS, monthsToReach } from '../engine/finance.js';
 import { save, uid } from '../store.js';
 
 export const QUESTIONS = [
-  { slot: 'worry', type: 'text', q: 'Điều gì về tiền bạc đang khiến anh chưa yên tâm nhất lúc này?', chips: ['Không có khoản dự phòng', 'Nợ thẻ, nợ vay', 'Không biết tiền đi đâu hết', 'Lo chuyện về già'] },
-  { slot: 'worry_impact', type: 'text', q: 'Nếu điều đó được giải quyết, cuộc sống của anh sẽ nhẹ nhõm hơn ở điểm nào?' },
-  { slot: 'goal_name', type: 'text', q: 'Vậy mục tiêu tài chính quan trọng nhất của anh trong vài năm tới là gì?', chips: ['Mua nhà', 'Có quỹ dự phòng vững', 'Trả hết nợ', 'Mua xe'] },
-  { slot: 'goal_amount', type: 'money', q: 'Mục tiêu đó cần khoảng bao nhiêu tiền? Anh cứ ước lượng.' },
-  { slot: 'goal_years', type: 'number', q: 'Anh muốn đạt mục tiêu đó trong bao nhiêu năm?', chips: ['1', '3', '5', '10'] },
-  { slot: 'income', type: 'money', q: 'Giờ mình nhìn vào dòng tiền: mỗi tháng anh thực nhận khoảng bao nhiêu?' },
-  { slot: 'expense', type: 'money', q: 'Một tháng bình thường anh chi tiêu khoảng bao nhiêu, chưa tính trả nợ?' },
-  { slot: 'debt', type: 'money', q: 'Hiện anh có khoản nợ nào không? Tổng dư nợ khoảng bao nhiêu (không có thì gõ 0)?', chips: ['0'] },
-  { slot: 'debt_payment', type: 'money', q: 'Mỗi tháng anh trả nợ khoảng bao nhiêu?', skipIf: (a) => !a.debt },
-  { slot: 'emergency', type: 'money', q: 'Anh có khoản tiền để riêng cho tình huống khẩn cấp không? Khoảng bao nhiêu?', chips: ['0'] },
-  { slot: 'savings', type: 'money', q: 'Ngoài khoản đó, tiết kiệm và đầu tư khác của anh tổng cộng khoảng bao nhiêu?', chips: ['0'] },
-  { slot: 'risk', type: 'choice', q: 'Nếu một khoản đầu tư của anh giảm mạnh trong một năm, anh sẽ làm gì?', chips: ['Bán ngay cho yên tâm', 'Giữ nguyên chờ hồi', 'Mua thêm khi giá rẻ'] },
-  { slot: 'age', type: 'number', q: 'Câu cuối: năm nay anh bao nhiêu tuổi?' },
+  { slot: 'worry', type: 'text', q: 'Điều gì về tiền bạc đang khiến bạn chưa yên tâm nhất lúc này?', chips: ['Không có khoản dự phòng', 'Nợ thẻ, nợ vay', 'Không biết tiền đi đâu hết', 'Lo chuyện về già'] },
+  { slot: 'worry_impact', type: 'text', q: 'Nếu điều đó được giải quyết, cuộc sống của bạn sẽ nhẹ nhõm hơn ở điểm nào?' },
+  { slot: 'goal_name', type: 'text', q: 'Vậy mục tiêu tài chính quan trọng nhất của bạn trong vài năm tới là gì?', chips: ['Mua nhà', 'Có quỹ dự phòng vững', 'Trả hết nợ', 'Mua xe'] },
+  { slot: 'goal_amount', type: 'money', q: 'Mục tiêu đó cần khoảng bao nhiêu tiền? Bạn cứ ước lượng.' },
+  { slot: 'goal_years', type: 'number', q: 'Bạn muốn đạt mục tiêu đó trong bao nhiêu năm?', chips: ['1', '3', '5', '10'] },
+  { slot: 'income', type: 'money', q: 'Giờ tôi nhìn vào dòng tiền: mỗi tháng bạn thực nhận khoảng bao nhiêu?' },
+  { slot: 'expense', type: 'money', q: 'Một tháng bình thường bạn chi tiêu khoảng bao nhiêu, chưa tính trả nợ?' },
+  { slot: 'debt', type: 'money', q: 'Hiện bạn có khoản nợ nào không? Tổng dư nợ khoảng bao nhiêu (không có thì gõ 0)?', chips: ['0'] },
+  { slot: 'debt_payment', type: 'money', q: 'Mỗi tháng bạn trả nợ khoảng bao nhiêu?', skipIf: (a) => !a.debt },
+  { slot: 'emergency', type: 'money', q: 'Bạn có khoản tiền để riêng cho tình huống khẩn cấp không? Khoảng bao nhiêu?', chips: ['0'] },
+  { slot: 'savings', type: 'money', q: 'Ngoài khoản đó, tiết kiệm và đầu tư khác của bạn tổng cộng khoảng bao nhiêu?', chips: ['0'] },
+  { slot: 'risk', type: 'choice', q: 'Nếu một khoản đầu tư của bạn giảm mạnh trong một năm, bạn sẽ làm gì?', chips: ['Bán ngay cho yên tâm', 'Giữ nguyên chờ hồi', 'Mua thêm khi giá rẻ'] },
+  { slot: 'age', type: 'number', q: 'Câu cuối: năm nay bạn bao nhiêu tuổi?' },
 ];
 
 const RISK = { 'Bán ngay cho yên tâm': 'thận trọng', 'Giữ nguyên chờ hồi': 'cân bằng', 'Mua thêm khi giá rẻ': 'tăng trưởng' };
@@ -66,7 +66,7 @@ export async function start(user) {
   await say(o, {
     intent: 'Mở đầu phiên làm quen cho người chưa dùng Valo: chào ngắn, nói sẽ hỏi từng câu một, bắt đầu từ nỗi lo chứ chưa hỏi số',
     question: QUESTIONS[0].q,
-    template: `Chào anh, mình là Valo Agent. Mình sẽ hỏi từng câu một, bắt đầu từ điều anh đang bận lòng trước rồi mới tới con số. ${QUESTIONS[0].q}`,
+    template: `Chào bạn, tôi là Valo Agent. Tôi sẽ hỏi từng câu một, bắt đầu từ điều bạn đang bận lòng trước rồi mới tới con số. ${QUESTIONS[0].q}`,
   });
   save();
 }
@@ -78,7 +78,7 @@ export async function answer(user, { text = '' }) {
   const val = parseAnswer(q, text);
   o.messages.push({ id: uid('om'), role: 'user', text: String(text).slice(0, 300) });
   if (val === null || val === '') {
-    await say(o, { intent: 'Người dùng trả lời chưa rõ con số, nhờ nói lại nhẹ nhàng', question: q.q, template: `Mình chưa đọc được con số trong câu trả lời. ${q.q}` });
+    await say(o, { intent: 'Người dùng trả lời chưa rõ con số, nhờ nói lại nhẹ nhàng', question: q.q, template: `Tôi chưa đọc được con số trong câu trả lời. ${q.q}` });
     save();
     return;
   }
@@ -92,14 +92,14 @@ export async function answer(user, { text = '' }) {
       intent: 'Kết thúc phiên làm quen: tóm tắt bản đồ tài chính bằng số engine, nhắc lại nỗi lo ban đầu, mời nối Valo để số liệu tự cập nhật',
       userAnswer: o.answers.worry,
       facts: f.filter((x) => ['ob_ef_months', 'ob_surplus', 'ob_goal_need', 'ob_goal_gap'].includes(x.id)),
-      template: 'Cảm ơn anh. Bản đồ tài chính tạm đã sẵn sàng: quỹ khẩn cấp đủ {{ob_ef_months}}, mỗi tháng dư {{ob_surplus}}, mục tiêu cần để dành {{ob_goal_need}} mỗi tháng, chênh so với khả năng là {{ob_goal_gap}}. Đây mới là hồ sơ tạm từ lời khai; nối Valo để số liệu tự cập nhật nhé.',
+      template: 'Cảm ơn bạn. Bản đồ tài chính tạm đã sẵn sàng: quỹ khẩn cấp đủ {{ob_ef_months}}, mỗi tháng dư {{ob_surplus}}, mục tiêu cần để dành {{ob_goal_need}} mỗi tháng, chênh so với khả năng là {{ob_goal_gap}}. Đây mới là hồ sơ tạm từ lời khai; nối Valo để số liệu tự cập nhật nhé.',
     });
   } else {
     const nq = QUESTIONS[o.idx];
     await say(o, {
       intent: `Phiên làm quen, câu ${o.idx + 1}: ghi nhận ngắn câu trả lời vừa rồi (không nhắc lại con số) rồi hỏi câu tiếp theo`,
       question: nq.q, userAnswer: text,
-      template: `${o.idx <= 2 ? 'Mình hiểu, cảm ơn anh đã chia sẻ.' : 'Mình ghi nhận.'} ${nq.q}`,
+      template: `${o.idx <= 2 ? 'Tôi hiểu, cảm ơn bạn đã chia sẻ.' : 'Tôi ghi nhận.'} ${nq.q}`,
     });
   }
   save();

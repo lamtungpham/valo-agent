@@ -340,12 +340,12 @@ function renderAgents() {
       <circle class="ag-pulse" r="5"><animateMotion dur="1.4s" begin="${i * 0.45}s" repeatCount="indefinite" path="${d}"/></circle>`;
   }).join('');
   const back = `<path class="ag-back" d="M70,${Y(4)} C20,${Y(4)} 20,${Y(0)} 70,${Y(0)}"></path>
-    <text class="rl" transform="translate(14,${(Y(0) + Y(4)) / 2}) rotate(-90)" text-anchor="middle">vòng lặp chủ động: sự kiện vượt ngưỡng → nhắc anh</text>
+    <text class="rl" transform="translate(14,${(Y(0) + Y(4)) / 2}) rotate(-90)" text-anchor="middle">vòng lặp chủ động: sự kiện vượt ngưỡng → nhắc bạn</text>
     <path class="ag-veto" d="M150,${Y(3) - 12} C210,${Y(3) - 40} 210,${Y(2) + 40} 150,${Y(2) + 12}"></path>
     <text class="rl warnx" x="200" y="${(Y(2) + Y(3)) / 2 + 4}">số lạ → chặn, dùng bản mẫu</text>`;
   $('#tab-agents').innerHTML = `
     <h3>Multi-agent chia vai</h3>
-    <p class="note">Mỗi lần anh nhắn hoặc dữ liệu đổi, một lượt chạy đi qua 5 agent theo thứ tự. Nút sáng là agent đã chạy ở lượt gần nhất, dòng chữ dưới nút là việc nó vừa làm.</p>
+    <p class="note">Mỗi lần bạn nhắn hoặc dữ liệu đổi, một lượt chạy đi qua 5 agent theo thứ tự. Nút sáng là agent đã chạy ở lượt gần nhất, dòng chữ dưới nút là việc nó vừa làm.</p>
     <div class="card ag-wrap"><svg class="ag-svg" viewBox="0 0 520 520" role="img" aria-label="Sơ đồ luồng 5 agent">${back}${links}${nodes}</svg></div>
     <div class="card note">AI: Muse Spark <b>${esc(S.muse.model)}</b> qua ${esc(S.muse.baseUrl)} · ${S.muse.enabled ? 'đã cấu hình khoá' : 'chưa có META_API_KEY, Coach dùng lời dẫn mẫu'}. LLM không bao giờ nhận quyền tính số: nó chỉ chèn mã {{fact}} và Agent Kiểm chứng chặn mọi chữ số lạ.</div>
     <h4>Nhật ký gần nhất</h4>
@@ -425,7 +425,7 @@ window.Onboard = (() => {
     const cap = Math.max(0, fm.ob_surplus.value);
     const gTotal = Math.max(need, cap, 1);
     return `<h3>Bản đồ tài chính (hồ sơ tạm)</h3>
-      <div class="card"><div class="note">Điều anh chưa yên tâm nhất</div><b>"${esc(p.worry)}"</b>${p.worryImpact ? `<div class="note">Khi giải quyết được: ${esc(p.worryImpact)}</div>` : ''}</div>
+      <div class="card"><div class="note">Điều bạn chưa yên tâm nhất</div><b>"${esc(p.worry)}"</b>${p.worryImpact ? `<div class="note">Khi giải quyết được: ${esc(p.worryImpact)}</div>` : ''}</div>
       <div class="card"><b>Dòng tiền tháng</b> · thu nhập ${factSpan(fm.ob_income)}
         <div style="margin:8px 0">${bar([{ v: fl.expense, l: 'Chi tiêu', c: '#8a8f2a' }, { v: fl.debtPay, l: 'Trả nợ', c: 'var(--neg)' }, { v: Math.max(0, fl.surplus), l: 'Dư', c: 'var(--pos)' }], flowTotal)}</div>
         <div class="note">Dư ${factSpan(fm.ob_surplus)} · tỷ lệ để dành ${factSpan(fm.ob_saving_rate)} · trả nợ/thu nhập ${factSpan(fm.ob_dti)}</div></div>
@@ -451,7 +451,7 @@ window.Onboard = (() => {
     const box = el();
     if (!O || (!O.active && !O.messages?.length)) {
       box.innerHTML = `<h3>Dành cho người chưa dùng Valo</h3>
-        <div class="card"><p>Khoảng 12-13 câu hỏi ngắn theo kiểu khai vấn, mỗi lần một câu. Bắt đầu từ điều anh đang lo nhất về tiền bạc, rồi mới tới con số. Kết thúc bằng một bản đồ tài chính trực quan và hồ sơ tạm.</p>
+        <div class="card"><p>Khoảng 12-13 câu hỏi ngắn theo kiểu khai vấn, mỗi lần một câu. Bắt đầu từ điều bạn đang lo nhất về tiền bạc, rồi mới tới con số. Kết thúc bằng một bản đồ tài chính trực quan và hồ sơ tạm.</p>
         <button class="btn primary" id="obStart">Bắt đầu</button></div>`;
       box.querySelector('#obStart').onclick = () => call('/onboarding/start', {});
       return;
@@ -463,7 +463,7 @@ window.Onboard = (() => {
       <div class="chat" style="max-height:${O.done ? '260px' : '460px'};padding:8px 0">${msgs}</div>
       ${loading ? '<div class="typing">Coach đang trả lời…</div>' : ''}
       ${q ? `<div class="chips" style="padding:6px 0">${q.chips.map((c) => `<button class="chip" data-ob="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-        <form id="obForm" class="composer" style="padding:6px 0;border:0"><input id="obIn" placeholder="${q.type === 'money' ? 'Ví dụ: 15 triệu, 500k, 20.000.000' : q.type === 'number' ? 'Nhập một con số' : 'Trả lời bằng lời của anh'}" autocomplete="off"><button class="btn primary">Gửi</button></form>` : ''}
+        <form id="obForm" class="composer" style="padding:6px 0;border:0"><input id="obIn" placeholder="${q.type === 'money' ? 'Ví dụ: 15 triệu, 500k, 20.000.000' : q.type === 'number' ? 'Nhập một con số' : 'Trả lời bằng lời của bạn'}" autocomplete="off"><button class="btn primary">Gửi</button></form>` : ''}
       ${O.done && O.profile ? mapView(O.profile) : ''}`;
     const c = box.querySelector('.chat');
     if (c) c.scrollTop = c.scrollHeight;
