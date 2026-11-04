@@ -10,7 +10,7 @@ import { verify } from './verifier.js';
 import { fact } from '../engine/facts.js';
 import { stateAtAge } from '../engine/bhxh.js';
 import { save, uid, START_DATE } from '../store.js';
-import { THRESHOLDS, shockJobLoss } from '../engine/finance.js';
+import { goalFactId, THRESHOLDS, shockJobLoss } from '../engine/finance.js';
 
 const vnd = (n) => `${new Intl.NumberFormat('vi-VN').format(Math.round(n))} đ`;
 
@@ -466,10 +466,10 @@ async function okMessage(user, a, logs) {
     extraFacts.push(fact('next_goal', { label: 'Mục tiêu kế tiếp', value: next.name, unit: 'text', formula: 'Mục tiêu đầu tiên chưa đạt đủ tiền', source: a.snap.meta.label, asOf }));
     o = {
       intent: 'Quỹ dự phòng đã đủ: ghi nhận, rồi chuyển sang mục tiêu kế tiếp chưa xong, gợi ý một công cụ cụ thể',
-      factIds: ['ef_months', 'ef_target', 'next_goal', `goal_${next.id}_progress`, `goal_${next.id}_remaining`, ...(Number.isFinite(next.months) ? [`goal_${next.id}_months`] : [])],
+      factIds: ['ef_months', 'ef_target', 'next_goal', goalFactId(next.id, 'progress'), goalFactId(next.id, 'remaining'), ...(Number.isFinite(next.months) ? [goalFactId(next.id, 'months')] : [])],
       template: Number.isFinite(next.months)
-        ? `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{goal_${next.id}_progress}}, còn thiếu {{goal_${next.id}_remaining}}, giữ mức góp hiện tại thì mất khoảng {{goal_${next.id}_months}} nữa. Anh muốn thử xem góp thêm mỗi tháng thì về đích sớm bao nhiêu không?`
-        : `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{goal_${next.id}_progress}}, còn thiếu {{goal_${next.id}_remaining}}. Hiện dữ liệu chưa có khoản góp định kỳ cho mục tiêu này nên chưa ước được bao lâu thì xong. Anh muốn thử xem mỗi tháng góp một khoản thì mất bao lâu không?`,
+        ? `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{${goalFactId(next.id, 'progress')}}}, còn thiếu {{${goalFactId(next.id, 'remaining')}}}, giữ mức góp hiện tại thì mất khoảng {{${goalFactId(next.id, 'months')}}} nữa. Anh muốn thử xem góp thêm mỗi tháng thì về đích sớm bao nhiêu không?`
+        : `${efPart} Việc đáng bàn tiếp là "{{next_goal}}": đã đạt {{${goalFactId(next.id, 'progress')}}}, còn thiếu {{${goalFactId(next.id, 'remaining')}}}. Hiện dữ liệu chưa có khoản góp định kỳ cho mục tiêu này nên chưa ước được bao lâu thì xong. Anh muốn thử xem mỗi tháng góp một khoản thì mất bao lâu không?`,
       chips: [{ label: 'Mô phỏng góp thêm cho mục tiêu này', value: 'tool:what_if' }, { label: 'Mô phỏng sốc mất việc', value: 'tool:shock_job_loss' }, { label: 'Tạo mục tiêu mới', value: 'ui:tools' }],
     };
   } else if (a.factMap.retire_gap?.value > 0) {

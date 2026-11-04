@@ -80,3 +80,18 @@ test('Quỹ dự phòng thiếu và mô phỏng', () => {
   const s = shockJobLoss({ fund: 20e6, monthlyExpense: 12.5e6, months: 6 });
   assert.equal(s.shortfall, 55e6);
 });
+
+test('mục tiêu có id "main" không đè lên bí danh goal_main_*', async () => {
+  const { financeFacts } = await import('../src/engine/finance.js');
+  const { toMap } = await import('../src/engine/facts.js');
+  const snap = JSON.parse(readFileSync(new URL('../fixtures/mr-sample.json', import.meta.url)));
+  snap.goals = [
+    { id: 'main', name: 'Đã xong', target: 100, current: 100, monthly: 10 },
+    { id: 'x-1', name: 'Mua nhà', target: 1000, current: 347, monthly: 0 },
+  ];
+  const m = toMap(financeFacts(snap, {}).facts);
+  assert.equal(m.goal_main_name.value, 'Mua nhà');
+  assert.ok(Math.abs(m.goal_main_progress.value - 34.7) < 0.01);
+  assert.equal(m.gl_main_progress.value, 100);
+  assert.ok(m.gl_x_1_progress);
+});

@@ -35,6 +35,9 @@ export function spendingCheck(monthlySpending, budget) {
 }
 
 /** Số tháng để đạt một khoản còn thiếu với mức góp mỗi tháng. */
+/** Mã fact riêng cho từng mục tiêu; tiền tố gl_ để không đè lên bí danh goal_main_* (mục tiêu có id "main"). */
+export const goalFactId = (id, kind) => `gl_${String(id).replace(/\W/g, '_')}_${kind}`;
+
 export function monthsToReach(remaining, perMonth) {
   if (remaining <= 0) return 0;
   if (perMonth <= 0) return Infinity;
@@ -107,9 +110,9 @@ export function financeFacts(d, { source, asOf }) {
     facts.push(fact('goal_main_months', { label: `Số tháng còn lại "${main.name}"`, value: Number.isFinite(main.months) ? main.months : null, unit: 'months', display: Number.isFinite(main.months) ? undefined : 'chưa ước được (chưa có khoản góp định kỳ)', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
   }
   for (const g of goals) {
-    facts.push(fact(`goal_${g.id}_progress`, { label: `Tiến độ "${g.name}"`, value: g.progressPct, unit: 'percent', formula: 'Đã có ÷ mục tiêu × 100', source: 'Engine tài chính', asOf }));
-    facts.push(fact(`goal_${g.id}_remaining`, { label: `Còn thiếu "${g.name}"`, value: g.remaining, unit: 'vnd', formula: 'Số tiền mục tiêu − đã có', source: 'Engine tài chính', asOf }));
-    facts.push(fact(`goal_${g.id}_months`, { label: `Số tháng còn lại "${g.name}"`, value: Number.isFinite(g.months) ? g.months : null, unit: 'months', display: Number.isFinite(g.months) ? undefined : 'chưa ước được (chưa có khoản góp định kỳ)', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
+    facts.push(fact(goalFactId(g.id, 'progress'), { label: `Tiến độ "${g.name}"`, value: g.progressPct, unit: 'percent', formula: 'Đã có ÷ mục tiêu × 100', source: 'Engine tài chính', asOf }));
+    facts.push(fact(goalFactId(g.id, 'remaining'), { label: `Còn thiếu "${g.name}"`, value: g.remaining, unit: 'vnd', formula: 'Số tiền mục tiêu − đã có', source: 'Engine tài chính', asOf }));
+    facts.push(fact(goalFactId(g.id, 'months'), { label: `Số tháng còn lại "${g.name}"`, value: Number.isFinite(g.months) ? g.months : null, unit: 'months', display: Number.isFinite(g.months) ? undefined : 'chưa ước được (chưa có khoản góp định kỳ)', formula: 'Làm tròn lên (còn thiếu ÷ góp mỗi tháng)', source: 'Engine tài chính', asOf }));
   }
   return { facts, ef, alloc, spend, goals };
 }
